@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sentry — Authenticate</title>
+<style>
+  :root {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --status-dryrun: #f59e0b;
+    --status-enforce: #ef4444;
+    --status-normal: #10b981;
+    --status-suspect: #f97316;
+    --status-mitigated: #a855f7;
+    --font-mono: "Fira Code", Consolas, Monaco, monospace;
+    --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    background: var(--bg-primary);
+    background-image:
+      linear-gradient(var(--bg-tertiary) 1px, transparent 1px),
+      linear-gradient(90deg, var(--bg-tertiary) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-position: center;
+    background-color: var(--bg-primary);
+    opacity: 1;
+    color: var(--text-main);
+    font-family: var(--font-ui);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+
+  /* soften the grid so it reads as texture, not a literal grid */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 0%, var(--bg-primary) 75%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 380px;
+    padding: 0 24px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 28px;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: var(--status-enforce);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+  }
+
+  .brand-mark svg { width: 18px; height: 18px; }
+
+  .brand-name {
+    font-family: var(--font-mono);
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--bg-tertiary);
+    border-radius: 10px;
+    padding: 32px 30px 28px;
+    box-shadow: 0 20px 50px -20px rgba(0,0,0,0.6);
+  }
+
+  .card h1 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+
+  .card .sub {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 0 0 24px;
+    font-family: var(--font-mono);
+  }
+
+  label {
+    display: block;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    font-family: var(--font-mono);
+  }
+
+  .field {
+    position: relative;
+    margin-bottom: 18px;
+  }
+
+  input[type="password"],
+  input[type="text"] {
+    width: 100%;
+    background: var(--bg-primary);
+    border: 1px solid var(--bg-tertiary);
+    color: var(--text-main);
+    border-radius: 6px;
+    padding: 11px 40px 11px 13px;
+    font-size: 0.875rem;
+    font-family: var(--font-mono);
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+
+  input:focus {
+    border-color: var(--status-enforce);
+  }
+
+  .toggle-vis {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+  }
+  .toggle-vis:hover { color: var(--text-main); }
+
+  .remember-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 22px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  .remember-row label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    text-transform: none;
+    letter-spacing: normal;
+    font-family: var(--font-ui);
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .remember-row input[type="checkbox"] {
+    accent-color: var(--status-enforce);
+  }
+
+  button.submit {
+    width: 100%;
+    background: var(--status-enforce);
+    color: #1c0505;
+    border: none;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.01em;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+
+  button.submit:hover { background: #dc3838; }
+  button.submit:active { transform: scale(0.99); }
+  button.submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .status-line {
+    margin-top: 14px;
+    font-size: 0.78rem;
+    font-family: var(--font-mono);
+    min-height: 1.1em;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .status-line.error { color: var(--status-enforce); }
+  .status-line.ok { color: var(--status-normal); }
+  .status-line.hidden { visibility: hidden; }
+
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none;
+  }
+
+  .footer-note {
+    text-align: center;
+    margin-top: 22px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    line-height: 1.6;
+  }
+
+  .footer-note strong { color: var(--text-main); font-weight: 500; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L3 6.5V12C3 17 6.6 21.3 12 22.5C17.4 21.3 21 17 21 12V6.5L12 2Z" stroke="#f8fafc" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M8.5 12.3L11 14.8L15.8 9.5" stroke="#f8fafc" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="brand-name">Sentry</div>
+    </div>
+
+    <div class="card">
+      <h1>Authenticate session</h1>
+      <p class="sub">SDN attack detection &amp; mitigation console</p>
+
+      <form id="login-form" novalidate>
+        <div class="field">
+          <label for="token">Operator token</label>
+          <input type="password" id="token" name="token" placeholder="Enter SENTRY_API_TOKEN" autocomplete="off" />
+          <button type="button" class="toggle-vis" id="toggle-vis" aria-label="Show token">SHOW</button>
+        </div>
+
+        <div class="remember-row">
+          <label><input type="checkbox" id="remember" /> Stay signed in for 12h</label>
+        </div>
+
+        <button type="submit" class="submit" id="submit-btn">Authenticate session</button>
+
+        <div class="status-line hidden" id="status-line">
+          <span class="dot"></span><span id="status-text"></span>
+        </div>
+      </form>
+    </div>
+
+    <p class="footer-note">
+      Sessions use an <strong>HttpOnly</strong>, <strong>SameSite=Strict</strong> cookie.<br>
+      Five failed attempts within 60s locks this address temporarily.
+    </p>
+  </div>
+
+<script>
+(function () {
+  var form = document.getElementById('login-form');
+  var tokenInput = document.getElementById('token');
+  var toggleBtn = document.getElementById('toggle-vis');
+  var submitBtn = document.getElementById('submit-btn');
+  var statusLine = document.getElementById('status-line');
+  var statusText = document.getElementById('status-text');
+  var failCount = 0;
+
+  toggleBtn.addEventListener('click', function () {
+    var showing = tokenInput.type === 'text';
+    tokenInput.type = showing ? 'password' : 'text';
+    toggleBtn.textContent = showing ? 'SHOW' : 'HIDE';
+    toggleBtn.setAttribute('aria-label', showing ? 'Show token' : 'Hide token');
+  });
+
+  function setStatus(kind, message) {
+    statusLine.className = 'status-line ' + kind;
+    statusText.textContent = message;
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    if (!tokenInput.value.trim()) {
+      setStatus('error', 'Enter a token before continuing.');
+      tokenInput.focus();
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Authenticating…';
+    setStatus('hidden', '');
+
+    // Demo-only stand-in for fetch('/api/v1/login'). The real client posts
+    // the token, and on HTTP 200 the server sets the session cookie and
+    // the client redirects to '/'.
+    setTimeout(function () {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Authenticate session';
+
+      if (tokenInput.value.trim().length < 8) {
+        failCount += 1;
+        setStatus('error', 'Invalid token. ' + (5 - failCount) + ' attempts remaining before lockout.');
+        return;
+      }
+
+      setStatus('ok', 'Session established — redirecting…');
+      setTimeout(function () {
+        window.location.href = 'dashboard.html';
+      }, 600);
+    }, 550);
+  });
+})();
+</script>
+</body>
+</html>

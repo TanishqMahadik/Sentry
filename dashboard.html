@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sentry — Operator dashboard</title>
+<style>
+  :root {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --status-dryrun: #f59e0b;
+    --status-enforce: #ef4444;
+    --status-normal: #10b981;
+    --status-suspect: #f97316;
+    --status-mitigated: #a855f7;
+    /* Text-safe tints: base status colors read 3.7-3.9:1 on --bg-secondary,
+       under the 4.5:1 AA text minimum. These pass (5.3:1 / 7.9:1) for any
+       small text/label rendered on a card surface. Base colors stay in use
+       for fills, borders, dots and icons (3:1 UI-component minimum). */
+    --status-enforce-text: #f87171;
+    --status-mitigated-text: #c4b5fd;
+    --font-mono: "Fira Code", Consolas, Monaco, monospace;
+    --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg-primary);
+    color: var(--text-main);
+    font-family: var(--font-ui);
+    font-size: 0.875rem;
+    line-height: 1.4;
+  }
+  a { color: inherit; }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 22px;
+    border-bottom: 1px solid var(--bg-tertiary);
+    background: var(--bg-secondary);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 9px; font-family: var(--font-mono); font-weight: 600; font-size: 0.95rem; }
+  .brand-mark { width: 24px; height: 24px; border-radius: 6px; background: var(--status-enforce); display: flex; align-items: center; justify-content: center; flex: none; }
+  .brand-mark svg { width: 13px; height: 13px; }
+
+  .mode-badge {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: none;
+    transition: filter 0.15s ease;
+  }
+  .mode-badge:hover { filter: brightness(1.1); }
+  .mode-badge.dryrun { background: var(--status-dryrun); color: #422006; }
+  .mode-badge.enforce { background: var(--status-enforce); color: #1c0505; }
+
+  .meta-item { font-size: 0.76rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+  .meta-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--status-normal); }
+
+  .header-right { display: flex; align-items: center; gap: 18px; }
+
+  .kill-switch { display: flex; align-items: center; gap: 8px; font-size: 0.76rem; color: var(--text-muted); }
+  .switch { width: 34px; height: 18px; border-radius: 9px; background: var(--bg-tertiary); position: relative; cursor: pointer; border: none; padding: 0; }
+  .switch .knob { width: 14px; height: 14px; border-radius: 50%; background: var(--text-main); position: absolute; top: 2px; left: 2px; transition: left 0.15s ease, background 0.15s ease; }
+  .switch.on { background: var(--status-enforce); }
+  .switch.on .knob { left: 18px; }
+
+  .session { font-size: 0.76rem; color: var(--text-muted); font-family: var(--font-mono); }
+  .logout-link { font-size: 0.76rem; color: var(--text-muted); text-decoration: none; border-bottom: 1px dashed var(--bg-tertiary); cursor: pointer; }
+  .logout-link:hover { color: var(--text-main); }
+
+  /* ---------- layout ---------- */
+  main { padding: 18px 22px 40px; max-width: 1400px; margin: 0 auto; }
+
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .tile { background: var(--bg-secondary); border: 1px solid var(--bg-tertiary); border-radius: 8px; padding: 14px 16px; }
+  .tile .label { font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.04em; }
+  .tile .value { font-size: 1.75rem; font-weight: 600; margin-top: 6px; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 8px; }
+  .tile .trend { font-size: 0.72rem; margin-top: 4px; color: var(--text-muted); }
+  .tile-icon { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.03em; padding: 1px 6px; border-radius: 3px; }
+  .tile.threats .tile-icon { background: var(--status-suspect); color: #431407; }
+  .tile.mitigations .tile-icon { background: var(--status-mitigated); color: #1c0533; }
+
+  .grid-2 { display: grid; grid-template-columns: 1.35fr 1fr; gap: 12px; margin-bottom: 12px; }
+  @media (max-width: 980px) { .grid-2, .tiles { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--bg-secondary); border: 1px solid var(--bg-tertiary); border-radius: 8px; padding: 14px 16px; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .panel-title { font-size: 0.78rem; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+  .panel-sub { font-size: 0.7rem; color: var(--text-muted); }
+
+  /* ---------- topology ---------- */
+  .legend { display: flex; gap: 14px; font-size: 0.7rem; color: var(--text-muted); margin-top: 10px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend-shape { width: 10px; height: 10px; display: inline-block; }
+
+  /* ---------- threat feed ---------- */
+  .feed { max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  .feed-row { display: flex; align-items: center; gap: 10px; background: var(--bg-primary); border: 1px solid var(--bg-tertiary); border-radius: 6px; padding: 8px 10px; cursor: pointer; font-size: 0.78rem; transition: border-color 0.15s ease; }
+  .feed-row:hover { border-color: var(--status-suspect); }
+  .sev-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .sev-dot.crit { background: var(--status-enforce); }
+  .sev-dot.warn { background: var(--status-suspect); }
+  .sev-dot.info { background: var(--status-dryrun); }
+  .sev-badge { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em; padding: 2px 6px; border-radius: 3px; flex: none; font-family: var(--font-mono); }
+  .sev-badge.crit { background: var(--status-enforce); color: #1c0505; }
+  .sev-badge.warn { background: var(--status-suspect); color: #431407; }
+  .sev-badge.info { background: var(--status-dryrun); color: #422006; }
+  .feed-main { flex: 1; min-width: 0; }
+  .feed-main .t1 { font-weight: 500; }
+  .feed-main .t2 { color: var(--text-muted); font-size: 0.7rem; font-family: var(--font-mono); }
+  .feed-time { font-size: 0.68rem; color: var(--text-muted); font-family: var(--font-mono); flex: none; }
+
+  /* ---------- chart ---------- */
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* ---------- registry ---------- */
+  .reg-row { display: grid; grid-template-columns: 1.3fr 1fr 0.6fr auto; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--bg-tertiary); font-size: 0.78rem; }
+  .reg-row:last-child { border-bottom: none; }
+  .reg-target { font-weight: 500; }
+  .reg-stage { font-size: 0.68rem; color: var(--status-mitigated-text); font-family: var(--font-mono); }
+  .bar-track { height: 6px; background: var(--bg-tertiary); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--status-mitigated); }
+  .ttl { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); }
+  .revoke-btn { background: transparent; border: 1px solid var(--status-enforce); color: var(--status-enforce-text); border-radius: 5px; padding: 5px 12px; font-size: 0.72rem; cursor: pointer; font-family: var(--font-ui); }
+  .revoke-btn:hover { background: var(--status-enforce); color: #1c0505; }
+  .ledger-status { display: flex; align-items: center; gap: 7px; font-size: 0.72rem; color: var(--status-normal); font-family: var(--font-mono); margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--bg-tertiary); }
+
+  /* ---------- evidence drawer ---------- */
+  .drawer-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; align-items: stretch; justify-content: flex-end; }
+  .drawer-overlay.open { display: flex; }
+  .drawer { width: 380px; max-width: 92vw; background: var(--bg-secondary); border-left: 1px solid var(--bg-tertiary); padding: 20px; overflow-y: auto; }
+  .drawer h3 { margin: 0 0 4px; font-size: 1rem; }
+  .drawer .sub { color: var(--text-muted); font-size: 0.76rem; margin-bottom: 16px; }
+  .drawer-close { float: right; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; }
+  .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 14px 0; }
+  .feature-cell { background: var(--bg-primary); border: 1px solid var(--bg-tertiary); border-radius: 5px; padding: 8px 10px; }
+  .feature-cell .fk { font-size: 0.65rem; color: var(--text-muted); font-family: var(--font-mono); }
+  .feature-cell .fv { font-size: 0.85rem; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .trigger-list { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 6px; }
+  .trigger-list li { font-size: 0.76rem; background: var(--bg-primary); border-left: 2px solid var(--status-suspect); border-radius: 3px; padding: 7px 10px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L3 6.5V12C3 17 6.6 21.3 12 22.5C17.4 21.3 21 17 21 12V6.5L12 2Z" stroke="#f8fafc" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M8.5 12.3L11 14.8L15.8 9.5" stroke="#f8fafc" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      Sentry
+    </div>
+    <button class="mode-badge dryrun" id="mode-badge">DRY-RUN</button>
+    <div class="meta-item"><span class="dot"></span>Controller connected</div>
+    <div class="meta-item" id="warmup-item">Warmup 00:38</div>
+  </div>
+  <div class="header-right">
+    <div class="kill-switch">
+      Kill-switch
+      <button class="switch" id="kill-switch"><span class="knob"></span></button>
+    </div>
+    <div class="session">operator: <strong>n.rao</strong></div>
+    <a class="logout-link" id="logout-link">Sign out</a>
+  </div>
+</header>
+
+<main>
+  <div class="tiles">
+    <div class="tile"><div class="label">Total PPS</div><div class="value" id="tile-pps">18,204</div><div class="trend">baseline ~14,900</div></div>
+    <div class="tile threats"><div class="label">Active threats</div><div class="value"><span id="tile-threats">2</span><span class="tile-icon">2 open</span></div><div class="trend">1 crit · 1 warn</div></div>
+    <div class="tile mitigations"><div class="label">Active mitigations</div><div class="value">1<span class="tile-icon">stage 2</span></div><div class="trend">stage 2 · 1 host</div></div>
+    <div class="tile"><div class="label">Refusal count</div><div class="value">0</div><div class="trend">safety rails clean</div></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">Topology</span>
+        <span class="panel-sub">4 switches · 9 hosts</span>
+      </div>
+      <svg viewBox="0 0 520 220" style="width:100%;height:220px;">
+        <line x1="100" y1="110" x2="230" y2="55" stroke="#334155" stroke-width="1.5"/>
+        <line x1="100" y1="110" x2="230" y2="165" stroke="#334155" stroke-width="1.5"/>
+        <line x1="230" y1="55" x2="360" y2="110" stroke="#334155" stroke-width="1.5"/>
+        <line x1="230" y1="165" x2="360" y2="110" stroke="#334155" stroke-width="1.5"/>
+        <line x1="360" y1="110" x2="460" y2="60" stroke="#334155" stroke-width="1.5"/>
+        <line x1="360" y1="110" x2="460" y2="160" stroke="#334155" stroke-width="1.5"/>
+
+        <circle cx="100" cy="110" r="11" fill="#10b981"/>
+        <text x="100" y="136" fill="#94a3b8" font-size="10" text-anchor="middle" font-family="Consolas,monospace">h1</text>
+
+        <polygon points="230,38 245,63 215,63" fill="#f97316"/>
+        <text x="230" y="80" fill="#94a3b8" font-size="10" text-anchor="middle" font-family="Consolas,monospace">h4 (suspect)</text>
+
+        <rect x="219" y="153" width="22" height="22" rx="3" fill="#a855f7"/>
+        <text x="230" y="191" fill="#94a3b8" font-size="10" text-anchor="middle" font-family="Consolas,monospace">h5 (mitigated)</text>
+
+        <circle cx="360" cy="110" r="11" fill="#10b981"/>
+        <text x="360" y="136" fill="#94a3b8" font-size="10" text-anchor="middle" font-family="Consolas,monospace">sw2</text>
+
+        <circle cx="460" cy="60" r="11" fill="#10b981"/>
+        <text x="460" y="42" fill="#94a3b8" font-size="10" text-anchor="middle" font-family="Consolas,monospace">server</text>
+
+        <polygon points="460,148 475,173 445,173" fill="#f97316"/>
+        <text x="460" y="192" fill="#94a3b8" font-size="10" text-anchor="middle" font-family="Consolas,monospace">h9 (suspect)</text>
+      </svg>
+      <div class="legend">
+        <span><span class="legend-shape" style="background:#10b981;border-radius:50%;"></span>Normal</span>
+        <span><svg class="legend-shape" viewBox="0 0 10 10"><polygon points="5,0 10,10 0,10" fill="#f97316"/></svg>Suspect</span>
+        <span><span class="legend-shape" style="background:#a855f7;border-radius:2px;"></span>Mitigated</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">Threat feed</span>
+        <span class="panel-sub">live</span>
+      </div>
+      <div class="feed" id="feed" aria-live="polite" aria-label="Live threat feed">
+        <div class="feed-row" data-evidence="synflood">
+          <span class="sev-dot crit"></span>
+          <div class="feed-main"><div class="t1">SYN flood — h4</div><div class="t2">stage 2 · escalating</div></div>
+          <span class="sev-badge crit">CRIT</span>
+          <div class="feed-time">00:03 ago</div>
+        </div>
+        <div class="feed-row" data-evidence="portscan">
+          <span class="sev-dot warn"></span>
+          <div class="feed-main"><div class="t1">Port scan — h9</div><div class="t2">2/2 windows positive</div></div>
+          <span class="sev-badge warn">WARN</span>
+          <div class="feed-time">00:41 ago</div>
+        </div>
+        <div class="feed-row" data-evidence="arp">
+          <span class="sev-dot info"></span>
+          <div class="feed-main"><div class="t1">ARP spoof — h2</div><div class="t2">1/2 windows · pending</div></div>
+          <span class="sev-badge info">INFO</span>
+          <div class="feed-time">01:12 ago</div>
+        </div>
+        <div class="feed-row" data-evidence="entropy">
+          <span class="sev-dot info"></span>
+          <div class="feed-main"><div class="t1">Entropy drop — sw2</div><div class="t2">below MAD band</div></div>
+          <span class="sev-badge info">INFO</span>
+          <div class="feed-time">02:05 ago</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:12px;">
+    <div class="panel-head">
+      <span class="panel-title">Baseline &amp; entropy</span>
+      <span class="panel-sub">EWMA ± MAD · h4 pkt/s</span>
+    </div>
+    <div class="chart-wrap"><canvas id="baseline-chart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Mitigation registry</span>
+      <span class="panel-sub">1 active</span>
+    </div>
+    <div class="reg-row">
+      <div>
+        <div class="reg-target">h4 — selective drop</div>
+        <div class="reg-stage">STAGE 2</div>
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="ttl-bar" style="width:64%;"></div></div>
+      <div class="ttl" id="ttl-text">00:41</div>
+      <button class="revoke-btn" id="revoke-btn">Revoke</button>
+    </div>
+    <div class="ledger-status"><span>●</span> Ledger verified · chain intact · 1,204 entries</div>
+  </div>
+</main>
+
+<div class="drawer-overlay" id="drawer-overlay">
+  <div class="drawer">
+    <button class="drawer-close" id="drawer-close">close ✕</button>
+    <h3 id="drawer-title">SYN flood — h4</h3>
+    <div class="sub" id="drawer-sub">Detected 00:03 ago · stage 2 · confidence high</div>
+    <div class="feature-grid" id="feature-grid"></div>
+    <div class="panel-title" style="margin-top:6px;">Matched triggers</div>
+    <ul class="trigger-list" id="trigger-list"></ul>
+  </div>
+</div>
+
+<script>
+(function () {
+  var evidenceData = {
+    synflood: {
+      title: 'SYN flood — h4',
+      sub: 'Detected 00:03 ago · stage 2 · confidence high',
+      features: { syn_rate: '842/s', syn_ack_ratio: '0.04', pkt_rate_z: '6.1', entropy_src: '2.1 bits', entropy_dst: '0.3 bits', conn_rate: '512/s', flow_new_rate: '301/s', mad_dev: '5.8x' },
+      triggers: ['syn_ack_ratio below 0.10 for 2 consecutive windows', 'pkt_rate_z exceeds 4.0 sigma threshold', 'flow_new_rate exceeds Stage 2 escalation bound']
+    },
+    portscan: {
+      title: 'Port scan — h9',
+      sub: 'Detected 00:41 ago · stage 1 · confidence medium',
+      features: { distinct_ports: '187', syn_rate: '210/s', syn_ack_ratio: '0.31', entropy_dport: '6.8 bits', conn_rate: '190/s', pkt_rate_z: '3.2', flow_new_rate: '188/s', mad_dev: '3.1x' },
+      triggers: ['distinct_ports exceeds 150 within window', 'entropy_dport above high-spread threshold']
+    },
+    arp: {
+      title: 'ARP spoof — h2',
+      sub: 'Detected 01:12 ago · observe only · 1/2 windows positive',
+      features: { arp_reply_rate: '44/s', mac_ip_conflicts: '3', gratuitous_arp: '12', pkt_rate_z: '1.4', entropy_src: '1.9 bits', conn_rate: '20/s', flow_new_rate: '18/s', mad_dev: '1.6x' },
+      triggers: ['mac_ip_conflicts greater than 0 within window']
+    },
+    entropy: {
+      title: 'Entropy drop — sw2',
+      sub: 'Detected 02:05 ago · alert-only · topology signal',
+      features: { entropy_src: '0.8 bits', entropy_dst: '0.9 bits', link_util_z: '2.7', pkt_rate_z: '1.1', conn_rate: '640/s', flow_new_rate: '40/s', mad_dev: '2.4x', baseline_age: '340s' },
+      triggers: ['entropy_src below MAD band for sustained window']
+    }
+  };
+
+  var badge = document.getElementById('mode-badge');
+  badge.addEventListener('click', function () {
+    var enforcing = badge.classList.toggle('enforce');
+    badge.classList.toggle('dryrun', !enforcing);
+    badge.textContent = enforcing ? 'ENFORCE' : 'DRY-RUN';
+  });
+
+  var kill = document.getElementById('kill-switch');
+  kill.addEventListener('click', function () {
+    kill.classList.toggle('on');
+  });
+
+  document.getElementById('logout-link').addEventListener('click', function () {
+    window.location.href = 'login.html';
+  });
+
+  // threat feed -> evidence drawer
+  var overlay = document.getElementById('drawer-overlay');
+  var featureGrid = document.getElementById('feature-grid');
+  var triggerList = document.getElementById('trigger-list');
+  var drawerTitle = document.getElementById('drawer-title');
+  var drawerSub = document.getElementById('drawer-sub');
+
+  document.querySelectorAll('.feed-row').forEach(function (row) {
+    row.addEventListener('click', function () {
+      var d = evidenceData[row.getAttribute('data-evidence')];
+      if (!d) return;
+      drawerTitle.textContent = d.title;
+      drawerSub.textContent = d.sub;
+      featureGrid.innerHTML = '';
+      Object.keys(d.features).forEach(function (k) {
+        var cell = document.createElement('div');
+        cell.className = 'feature-cell';
+        cell.innerHTML = '<div class="fk">' + k + '</div><div class="fv">' + d.features[k] + '</div>';
+        featureGrid.appendChild(cell);
+      });
+      triggerList.innerHTML = '';
+      d.triggers.forEach(function (t) {
+        var li = document.createElement('li');
+        li.textContent = t;
+        triggerList.appendChild(li);
+      });
+      overlay.classList.add('open');
+    });
+  });
+
+  document.getElementById('drawer-close').addEventListener('click', function () { overlay.classList.remove('open'); });
+  overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.classList.remove('open'); });
+
+  // revoke
+  document.getElementById('revoke-btn').addEventListener('click', function (e) {
+    var btn = e.currentTarget;
+    btn.textContent = 'Revoked';
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    document.getElementById('ttl-bar').style.width = '0%';
+    document.getElementById('ttl-text').textContent = '00:00';
+  });
+
+  // fake countdown ticker for TTL + warmup, demo purposes only
+  var ttlSeconds = 41;
+  var warmupSeconds = 38;
+  setInterval(function () {
+    if (ttlSeconds > 0) {
+      ttlSeconds -= 1;
+      var m = Math.floor(ttlSeconds / 60), s = ttlSeconds % 60;
+      var ttlText = document.getElementById('ttl-text');
+      if (ttlText && !document.getElementById('revoke-btn').disabled) {
+        ttlText.textContent = (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+        document.getElementById('ttl-bar').style.width = Math.max(0, (ttlSeconds / 64) * 64) + '%';
+      }
+    }
+    if (warmupSeconds > 0) {
+      warmupSeconds -= 1;
+      var wm = Math.floor(warmupSeconds / 60), ws = warmupSeconds % 60;
+      document.getElementById('warmup-item').textContent = 'Warmup ' + (wm < 10 ? '0' + wm : wm) + ':' + (ws < 10 ? '0' + ws : ws);
+    }
+  }, 1000);
+
+  // baseline + MAD band canvas chart
+  var canvas = document.getElementById('baseline-chart');
+  function draw() {
+    var dpr = window.devicePixelRatio || 1;
+    var rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = 220 * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = '220px';
+    var ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    var w = rect.width, h = 220, pad = 30;
+
+    var n = 60;
+    var baseline = [], observed = [], madUpper = [], madLower = [];
+    for (var i = 0; i < n; i++) {
+      var b = 14900 + Math.sin(i / 8) * 600;
+      baseline.push(b);
+      madUpper.push(b + 2200);
+      madLower.push(b - 2200);
+      var spike = (i > 40 && i < 55) ? (i - 40) * 900 : 0;
+      observed.push(b + Math.sin(i * 1.3) * 700 + spike);
+    }
+
+    var max = Math.max.apply(null, madUpper.concat(observed)) * 1.05;
+    var min = Math.min.apply(null, madLower.concat(observed)) * 0.95;
+    function x(i) { return pad + (i / (n - 1)) * (w - pad * 2); }
+    function y(v) { return h - 24 - ((v - min) / (max - min)) * (h - 44); }
+
+    ctx.clearRect(0, 0, w, h);
+
+    // mitigation region hatch (i 40..55)
+    var mx1 = x(40), mx2 = x(55);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(mx1, 10, mx2 - mx1, h - 34);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(168,85,247,0.35)';
+    ctx.lineWidth = 1;
+    for (var hx = mx1 - (h); hx < mx2 + h; hx += 8) {
+      ctx.beginPath();
+      ctx.moveTo(hx, 10);
+      ctx.lineTo(hx + h, h - 24);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // MAD band
+    ctx.beginPath();
+    for (var i2 = 0; i2 < n; i2++) { var px = x(i2), py = y(madUpper[i2]); i2 === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
+    for (var i3 = n - 1; i3 >= 0; i3--) { ctx.lineTo(x(i3), y(madLower[i3])); }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(148,163,184,0.12)';
+    ctx.fill();
+
+    // baseline EWMA line
+    ctx.beginPath();
+    for (var i4 = 0; i4 < n; i4++) { var px2 = x(i4), py2 = y(baseline[i4]); i4 === 0 ? ctx.moveTo(px2, py2) : ctx.lineTo(px2, py2); }
+    ctx.strokeStyle = '#94a3b8';
+    ctx.setLineDash([4, 3]);
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // observed line
+    ctx.beginPath();
+    for (var i5 = 0; i5 < n; i5++) {
+      var px3 = x(i5), py3 = y(observed[i5]);
+      i5 === 0 ? ctx.moveTo(px3, py3) : ctx.lineTo(px3, py3);
+      var over = observed[i5] > madUpper[i5];
+      ctx.strokeStyle = over ? '#f97316' : '#10b981';
+      ctx.lineWidth = 1.8;
+      if (i5 > 0) ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(px3, py3);
+    }
+
+    // axis baseline
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad, h - 24);
+    ctx.lineTo(w - pad, h - 24);
+    ctx.stroke();
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px Consolas, monospace';
+    ctx.fillText(Math.round(max).toLocaleString() + ' pkt/s', 4, y(max) + 4);
+    ctx.fillText(Math.round(min).toLocaleString() + ' pkt/s', 4, y(min) + 4);
+  }
+  draw();
+  window.addEventListener('resize', draw);
+})();
+</script>
+</body>
+</html>
