@@ -1,0 +1,34 @@
+# Sentry Service Configuration
+
+service:
+  name: sentry
+  mode: dry-run               # "dry-run" or "enforce"
+  poll_interval: 2.0         # Seconds between ONOS telemetry polls
+  warmup_windows: 5          # Initial windows before alert evaluation
+  log_level: INFO            # DEBUG, INFO, WARNING, ERROR
+
+onos:
+  host: 127.0.0.1
+  port: 8181
+  use_https: false
+  auth:
+    username: onos
+    password: rocks
+  timeout: 5.0               # HTTP request timeout in seconds
+  backoff:
+    initial: 1.0             # Initial backoff on connection failure
+    multiplier: 2.0          # Exponential backoff multiplier
+    max_seconds: 30.0        # Max backoff duration
+
+api:
+  host: 0.0.0.0
+  port: 9090
+  auth_token: "dev-sentry-token-change-in-prod"
+  session_ttl_seconds: 43200 # 12 hours
+  rate_limit:
+    max_attempts: 5
+    lockout_seconds: 60
+
+ledger:
+  path: "audit_ledger.jsonl"
+  enabled: true

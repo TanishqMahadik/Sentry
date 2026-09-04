@@ -1,0 +1,67 @@
+# Sentry Security Policy Configuration
+
+# Threat Detection Rules & Thresholds
+threats:
+  syn_flood:
+    enabled: true
+    threshold_pps: 500       # Packets per second
+    baseline_mad_factor: 3.0 # MAD deviations above EWMA
+    min_confidence: 0.85
+
+  udp_flood:
+    enabled: true
+    threshold_pps: 1000
+    baseline_mad_factor: 3.0
+    min_confidence: 0.85
+
+  icmp_flood:
+    enabled: true
+    threshold_pps: 300
+    baseline_mad_factor: 3.0
+    min_confidence: 0.85
+
+  port_scan:
+    enabled: true
+    unique_ports_threshold: 20  # Unique dest ports per window
+    window_seconds: 5
+    min_confidence: 0.90
+
+  arp_spoofing:
+    enabled: true
+    mac_conflict_threshold: 2   # IP claimed by multiple MACs
+    min_confidence: 0.95
+
+  cp_saturation:
+    enabled: true
+    packet_in_pps: 2000         # Packet-In rate to controller
+    min_confidence: 0.90
+
+  flow_table_exhaustion:
+    enabled: true
+    table_utilization_pct: 85.0 # Flow table capacity percentage
+    min_confidence: 0.90
+
+  topology_poisoning:
+    enabled: true
+    alert_only: true            # Never mitigate, alert-only per FR-1
+    link_flap_threshold: 5      # Link state changes per window
+    min_confidence: 0.90
+
+# Mitigation Escalation Ladder & Safety Rails
+mitigation:
+  default_ttl_seconds: 60       # Rule auto-expiry TTL (NFR-1 fail-open)
+  max_ttl_seconds: 300
+  escalation:
+    stage_0: "observe"
+    stage_1: "throttle"         # Apply OpenFlow meter
+    stage_2: "drop_rule"        # Specific 5-tuple drop flow
+    stage_3: "quarantine"       # Drop all host traffic
+    stage_4: "port_isolate"     # Operator ack required
+
+  # Safety Rails (Sequential Checks)
+  safety_rails:
+    prevent_gateway_quarantine: true
+    prevent_controller_port_drop: true
+    require_operator_ack_stage_4: true
+    max_simultaneous_mitigations: 10
+    cooldown_period_seconds: 30
