@@ -1,0 +1,16 @@
+# Sentry SDN Security — Python runtime container
+# Minimal stdlib-only Python image for the detection/mitigation loop.
+FROM python:3.11-slim
+
+LABEL maintainer="sentry-sdn"
+LABEL description="Sentry SDN attack detection and mitigation"
+
+WORKDIR /app
+
+# No pip installs needed — stdlib only (NFR-3).
+# Copy source code
+COPY src/ /app/src/
+
+# Default entrypoint
+ENTRYPOINT ["python", "-m", "sentry"]
+CMD ["run"]

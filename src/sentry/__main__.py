@@ -77,6 +77,45 @@ def create_parser() -> argparse.ArgumentParser:
         default="all",
         help="Specific scenario to replay",
     )
+    replay_parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="Start HTTP server for offline browser demo (Phase 7)",
+    )
+    replay_parser.add_argument(
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="Host to bind when using --serve (default: 0.0.0.0)",
+    )
+    replay_parser.add_argument(
+        "--port",
+        type=int,
+        default=9090,
+        help="Port to bind when using --serve (default: 9090)",
+    )
+
+    # Command: serve (Phase 7) — run the API server
+    serve_parser = subparsers.add_parser(
+        "serve", help="Start Sentry API server with dashboard"
+    )
+    serve_parser.add_argument(
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="Host to bind (default: 0.0.0.0)",
+    )
+    serve_parser.add_argument(
+        "--port",
+        type=int,
+        default=9090,
+        help="Port to bind (default: 9090)",
+    )
+    serve_parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="Use FakeTransport with mock fixtures",
+    )
 
     # Command: selftest (Phase 3 exit gate)
     subparsers.add_parser(
@@ -227,6 +266,148 @@ def run_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def replay_command(args: argparse.Namespace) -> int:
+    """Execute the 'replay' subcommand."""
+    # If --serve flag, start HTTP server for browser demo
+    if getattr(args, "serve", False):
+        return _start_server(args.host, args.port, replay_mode=True)
+
+    from sentry.sim.replay import ReplayEngine
+    from sentry.sim.scenarios import SCENARIOS
+
+    engine = ReplayEngine()
+
+    if args.scenario == "all":
+        scenarios_to_run = list(SCENARIOS.keys())
+    else:
+        scenarios_to_run = [args.scenario]
+
+    print("\n=== Sentry Replay Harness ===\n")
+    all_ok = True
+
+    for scenario_name in scenarios_to_run:
+        result = engine.replay_scenario(scenario_name, max_ticks=15, mad_threshold=2.0)
+        status = "OK" if result.anomalies_detected or scenario_name == "benign" else "FAIL"
+        if scenario_name == "benign" and len(result.anomalies_detected) > 2:
+            status = "WARN"
+
+        detection_str = f"tick {result.detection_tick}" if result.detection_tick else "none"
+        print(
+            f"  [{status}] {scenario_name:<25s} "
+            f"ticks={result.ticks_processed}  "
+            f"anomalies={len(result.anomalies_detected)}  "
+            f"detection={detection_str}"
+        )
+
+        if status == "FAIL":
+            all_ok = False
+
+    print()
+    if all_ok:
+        print("Replay complete: all scenarios passed.")
+    else:
+        print("Replay complete: some scenarios failed.")
+    print()
+    return 0 if all_ok else 1
+
+
+def serve_command(args: argparse.Namespace) -> int:
+    """Execute the 'serve' subcommand — start API server."""
+    return _start_server(args.host, args.port, replay_mode=False, mock=args.mock)
+
+
+def _start_server(
+    host: str = "0.0.0.0",
+    port: int = 9090,
+    replay_mode: bool = False,
+    mock: bool = False,
+) -> int:
+    """Start the Sentry API server."""
+    import signal
+    from sentry.api.server import create_server
+    from sentry.api.auth import Authenticator
+    from sentry.core.config import ApiConfig
+
+    cfg = ApiConfig()
+    authenticator = Authenticator(
+        valid_token=cfg.auth_token,
+        session_ttl_seconds=cfg.session_ttl_seconds,
+        max_attempts=cfg.rate_limit_max_attempts,
+        lockout_seconds=cfg.rate_limit_lockout_seconds,
+    )
+
+    server = create_server(
+        host=host,
+        port=port,
+        authenticator=authenticator,
+        executor=None,
+    )
+
+    def shutdown_handler(signum: int, frame: object) -> None:
+        logger.info("Shutdown signal received")
+        server.shutdown()
+
+    signal.signal(signal.SIGINT, shutdown_handler)
+    signal.signal(signal.SIGTERM, shutdown_handler)
+
+    mode = "replay" if replay_mode else "live"
+    print(f"\n=== Sentry API Server ({mode} mode) ===")
+    print(f"  Listening on http://{host}:{port}")
+    print(f"  Dashboard: http://{host}:{port}/dashboard.html")
+    print(f"  Token: {cfg.auth_token}")
+    print(f"  Press Ctrl+C to stop\n")
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+        print("\nServer stopped.")
+
+    return 0
+
+
+def selftest_command(args: argparse.Namespace) -> int:
+    """Execute the 'selftest' subcommand — Phase 3 exit gate."""
+    from sentry.sim.replay import ReplayEngine
+
+    engine = ReplayEngine()
+
+    print("\n=== Sentry Phase 3 Self-Test ===\n")
+
+    # 1. Validate benign produces zero/few alerts
+    benign_ok = engine.validate_benign_scenario(max_ticks=10)
+    print(f"  [{'OK' if benign_ok else 'FAIL'}] Benign traffic: zero/few alerts")
+
+    # 2. Validate each attack scenario is detected within latency bound
+    attack_scenarios = ["syn_flood", "udp_flood", "icmp_flood", "port_scan", "flow_table_exhaustion"]
+    all_ok = benign_ok
+
+    for scenario in attack_scenarios:
+        detected = engine.validate_attack_detection(
+            scenario, max_ticks=15, latency_bound=15, mad_threshold=2.0
+        )
+        print(f"  [{'OK' if detected else 'FAIL'}] {scenario}: detected within latency bound")
+        if not detected:
+            all_ok = False
+
+    # 3. Run full suite for summary
+    results = engine.run_all_scenarios(max_ticks=15)
+    total_anomalies = sum(len(r.anomalies_detected) for r in results.values())
+
+    print(f"\n  Scenarios run: {len(results)}")
+    print(f"  Total anomalies detected: {total_anomalies}")
+    print()
+
+    if all_ok:
+        print("Self-test PASSED — Phase 3 exit gate satisfied.")
+    else:
+        print("Self-test FAILED — see above for details.")
+    print()
+    return 0 if all_ok else 1
+
+
 def main() -> None:
     """Main CLI entrypoint."""
     parser = create_parser()
@@ -239,11 +420,11 @@ def main() -> None:
     if args.command == "run":
         sys.exit(run_command(args))
     elif args.command == "replay":
-        print("Replay harness will be implemented in Phase 3")
-        sys.exit(0)
+        sys.exit(replay_command(args))
+    elif args.command == "serve":
+        sys.exit(serve_command(args))
     elif args.command == "selftest":
-        print("Self-test suite will be implemented in Phase 3")
-        sys.exit(0)
+        sys.exit(selftest_command(args))
 
 
 if __name__ == "__main__":

@@ -311,24 +311,41 @@
     submitBtn.textContent = 'Authenticating…';
     setStatus('hidden', '');
 
-    // Demo-only stand-in for fetch('/api/v1/login'). The real client posts
-    // the token, and on HTTP 200 the server sets the session cookie and
-    // the client redirects to '/'.
-    setTimeout(function () {
+    // POST token to real API endpoint
+    fetch('/api/v1/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: tokenInput.value.trim() })
+    })
+    .then(function (resp) {
+      return resp.json().then(function (data) {
+        return { status: resp.status, data: data };
+      });
+    })
+    .then(function (result) {
       submitBtn.disabled = false;
       submitBtn.textContent = 'Authenticate session';
 
-      if (tokenInput.value.trim().length < 8) {
+      if (result.status === 200) {
+        setStatus('ok', 'Session established — redirecting…');
+        setTimeout(function () {
+          window.location.href = 'dashboard.html';
+        }, 600);
+      } else if (result.status === 429) {
+        setStatus('error', result.data.error || 'Too many attempts. Try again later.');
+      } else if (result.status === 401) {
         failCount += 1;
-        setStatus('error', 'Invalid token. ' + (5 - failCount) + ' attempts remaining before lockout.');
-        return;
+        var remaining = result.data.attempts_remaining != null ? result.data.attempts_remaining : (5 - failCount);
+        setStatus('error', 'Invalid token. ' + remaining + ' attempts remaining before lockout.');
+      } else {
+        setStatus('error', result.data.error || 'Authentication failed.');
       }
-
-      setStatus('ok', 'Session established — redirecting…');
-      setTimeout(function () {
-        window.location.href = 'dashboard.html';
-      }, 600);
-    }, 550);
+    })
+    .catch(function () {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Authenticate session';
+      setStatus('error', 'Server unreachable. Is the API running?');
+    });
   });
 })();
 </script>

@@ -1,0 +1,75 @@
+# Sentry SDN Attack Detection — Live Lab Environment
+# Runs ONOS controller + Mininet topology for integration testing.
+#
+# Usage:
+#   docker compose up -d          # Start ONOS
+#   python topo_lab.py            # Start Mininet topology
+#   python -m sentry run          # Start Sentry detection loop
+#
+# Ports:
+#   8181 — ONOS REST API (karaf console: login karaf/karaf)
+#   6653 — OpenFlow controller
+#   8080 — ONOS web UI
+
+services:
+  onos:
+    image: opennetworklab/onos:2.7.0
+    container_name: sentry-onos
+    hostname: onos
+    ports:
+      - "8181:8181"    # REST API
+      - "6653:6653"    # OpenFlow
+      - "8080:8080"    # Web UI
+    environment:
+      - ONOS_NAME=SentryController
+      - ONOS_WEB_USER=onos
+      - ONOS_WEB_PASS=onos
+      - JAVA_OPTS=-Xms512m -Xmx1024m
+    volumes:
+      - onos-hostname:/root
+      - ./onos-config:/root/onos-config
+    networks:
+      sentry-net:
+        ipv4_address: 10.0.0.100
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8181/onos/v1/devices"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  sentry:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.sentry
+    container_name: sentry-sentry
+    depends_on:
+      onos:
+        condition: service_healthy
+    environment:
+      - SENTRY_ONOS_URL=http://onos:8181/onos/v1
+      - SENTRY_ONOS_USER=onos
+      - SENTRY_ONOS_PASS=onos
+      - SENTRY_DRY_RUN=false
+      - SENTRY_LOG_LEVEL=INFO
+    volumes:
+      - ../src:/app/src:ro
+      - sentry-logs:/app/logs
+      - sentry-audit:/app/audit
+    networks:
+      sentry-net:
+        ipv4_address: 10.0.0.200
+    restart: unless-stopped
+
+networks:
+  sentry-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24
+
+volumes:
+  onos-hostname:
+  sentry-logs:
+  sentry-audit:
