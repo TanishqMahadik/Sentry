@@ -7,7 +7,6 @@ comments (#), and 2-space indentation.
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 
@@ -121,7 +120,11 @@ def parse_yaml(text: str) -> dict[str, Any]:
                     curr_idx = index + 1
                     while curr_idx < len(cleaned_lines):
                         next_indent, next_content = cleaned_lines[curr_idx]
-                        if next_indent == indent + 2 and not next_content.startswith("- ") and ":" in next_content:
+                        if (
+                            next_indent == indent + 2
+                            and not next_content.startswith("- ")
+                            and ":" in next_content
+                        ):
                             sk, sv = next_content.split(":", 1)
                             sk = sk.strip()
                             sv = sv.strip()
@@ -176,5 +179,5 @@ def parse_yaml(text: str) -> dict[str, Any]:
 
 def load_yaml_file(filepath: str) -> dict[str, Any]:
     """Load and parse a YAML file from disk."""
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         return parse_yaml(f.read())

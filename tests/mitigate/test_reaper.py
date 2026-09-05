@@ -2,10 +2,9 @@
 
 import time
 import unittest
-from unittest.mock import MagicMock
 
-from sentry.core.models import MitigationAction, ThreatVerdict
 from sentry.collect.window import WindowManager
+from sentry.core.models import MitigationAction, ThreatVerdict
 from sentry.mitigate.executor import Executor
 from sentry.mitigate.ledger import AuditLedger
 from sentry.mitigate.reaper import Reaper

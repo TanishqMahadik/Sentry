@@ -1,6 +1,5 @@
 """Tests for mitigate/reconciler.py — startup reconciliation."""
 
-import json
 import time
 import unittest
 
@@ -69,7 +68,6 @@ class TestReconciler(unittest.TestCase):
         self._add_applied_entry("m-001", expires_in=600)
         # FakeTransport returns empty flows → verification fails
         # We need to register a matching flow
-        now = int(time.time())
         self.transport.register_fixture("/flows/of:1", {
             "flows": [{
                 "id": "sentry-flow",
@@ -123,7 +121,6 @@ class TestReconciler(unittest.TestCase):
         self._add_applied_entry("m-missing", subject_id="10.0.0.3", expires_in=600)
 
         # Only m-valid has a matching flow on the switch
-        now = int(time.time())
         self.transport.register_fixture("/flows/of:1", {
             "flows": [{
                 "id": "valid-flow",

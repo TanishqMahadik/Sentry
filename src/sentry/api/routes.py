@@ -11,7 +11,7 @@ import time
 from typing import Any, Callable
 
 from sentry.api.auth import Authenticator
-
+from sentry.core.models import ThreatVerdict
 
 # Type for route handlers
 RouteHandler = Callable[..., tuple[int, dict[str, str], bytes]]
@@ -201,8 +201,23 @@ def make_status_handler() -> RouteHandler:
     return handler
 
 
-def make_threats_handler() -> RouteHandler:
-    """Create the GET /api/v1/threats handler."""
+def make_threats_handler(
+    scorer: Any = None,
+    threats_source: Callable[[], list[ThreatVerdict]] | None = None,
+) -> RouteHandler:
+    """Create the GET /api/v1/threats handler.
+
+    When a scorer and a threat source are supplied, each threat entry is
+    annotated with an ``advisory`` key from the ML advisory scorer (Phase 8).
+    Without them the handler mirrors the current empty placeholder shape.
+
+    Args:
+        scorer: Optional AdvisoryScorer (attaches the advisory field)
+        threats_source: Optional provider of active ThreatVerdicts
+
+    Returns:
+        Route handler function
+    """
 
     def handler(
         method: str,
@@ -211,8 +226,26 @@ def make_threats_handler() -> RouteHandler:
         body: bytes,
         client_ip: str,
     ) -> tuple[int, dict[str, str], bytes]:
-        # Placeholder — will be wired to Correlator in live mode
-        return _json_response(200, {"threats": [], "count": 0})
+        threats = threats_source() if threats_source is not None else []
+        if scorer is not None and getattr(scorer, "available", False):
+            # Annotate each threat with the ML advisory verdict.
+            port_metrics: dict[str, dict[str, float]] = {}
+            flow_metrics: dict[str, float] = {}
+            entries = scorer.attach_to_threats(threats, port_metrics, flow_metrics)
+        else:
+            entries = [
+                {
+                    "threat_type": t.threat_type,
+                    "subject_id": t.subject_id,
+                    "severity": t.severity,
+                    "confidence": t.confidence,
+                    "timestamp": t.timestamp,
+                    "evidence": t.evidence,
+                    "message": t.message,
+                }
+                for t in threats
+            ]
+        return _json_response(200, {"threats": entries, "count": len(entries)})
 
     return handler
 

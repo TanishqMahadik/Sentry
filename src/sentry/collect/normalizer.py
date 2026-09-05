@@ -7,7 +7,6 @@ Critical for accurate threat detection (FR-2: Adaptive Telemetry Ingestion).
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from sentry.core.models import PortStats, TelemetrySnapshot
 

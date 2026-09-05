@@ -4,6 +4,8 @@ Provides subcommands:
   - run: Start Sentry core engine (live or dry-run)
   - replay: Replay synthetic attack scenarios offline (Phase 3)
   - selftest: Run full test suite offline without external deps (Phase 3)
+  - train: Fit the ML advisory scorer on synthetic data (Phase 8)
+  - score: Score a scenario or feature set with the advisory scorer (Phase 8)
 """
 
 from __future__ import annotations
@@ -17,10 +19,14 @@ from sentry.collect.normalizer import TelemetryNormalizer
 from sentry.collect.poller import TelemetryPoller
 from sentry.core.config import load_config, setup_logging
 from sentry.core.models import TelemetrySnapshot
+from sentry.ml.advisory import DEFAULT_WEIGHTS_PATH
 from sentry.onos.client import OnosClient
 from sentry.onos.transport import FakeTransport, UrllibTransport
+from sentry.sim.scenarios import SCENARIOS
 
 logger = logging.getLogger("sentry")
+
+SCENARIOS_KEYS = sorted(SCENARIOS)
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -122,6 +128,51 @@ def create_parser() -> argparse.ArgumentParser:
         "selftest", help="Run offline self-test suite across all 8 attack vectors"
     )
 
+    # Command: train (Phase 8) — fit the ML advisory scorer
+    train_parser = subparsers.add_parser(
+        "train", help="Fit the ML advisory scorer on synthetic data"
+    )
+    train_parser.add_argument(
+        "--samples",
+        type=int,
+        default=60,
+        help="Synthetic samples per class (default: 60)",
+    )
+    train_parser.add_argument(
+        "--epochs",
+        type=int,
+        default=800,
+        help="Gradient descent iterations (default: 800)",
+    )
+    train_parser.add_argument(
+        "--out",
+        type=str,
+        default=DEFAULT_WEIGHTS_PATH,
+        help=f"Destination weights file (default: {DEFAULT_WEIGHTS_PATH})",
+    )
+
+    # Command: score (Phase 8) — run the advisory scorer
+    score_parser = subparsers.add_parser(
+        "score", help="Score a scenario or feature set with the advisory scorer"
+    )
+    score_parser.add_argument(
+        "--scenario",
+        type=str,
+        choices=list(SCENARIOS_KEYS),
+        help="Replay a scenario and show per-tick advisory scores",
+    )
+    score_parser.add_argument(
+        "--features",
+        type=str,
+        help="Score one window from 'name=value' pairs (e.g., pps_rx=5000,flow_count=300)",
+    )
+    score_parser.add_argument(
+        "--weights",
+        type=str,
+        default=DEFAULT_WEIGHTS_PATH,
+        help=f"Path to weights file (default: {DEFAULT_WEIGHTS_PATH})",
+    )
+
     return parser
 
 
@@ -140,6 +191,7 @@ def run_command(args: argparse.Namespace) -> int:
     )
 
     # Initialize transport
+    transport: FakeTransport | UrllibTransport
     if args.mock:
         logger.info("Using FakeTransport with mock fixtures")
         transport = FakeTransport()
@@ -221,6 +273,7 @@ def run_command(args: argparse.Namespace) -> int:
     if args.once:
         logger.info("Running single telemetry poll (--once)")
         if args.mock:
+            assert isinstance(transport, FakeTransport)  # register_fixture is mock-only
             # For mock --once, feed two snapshots to verify rate computation
             snap1 = client.get_telemetry_snapshot()
             normalizer.normalize_snapshot(snap1)
@@ -324,8 +377,9 @@ def _start_server(
 ) -> int:
     """Start the Sentry API server."""
     import signal
-    from sentry.api.server import create_server
+
     from sentry.api.auth import Authenticator
+    from sentry.api.server import create_server
     from sentry.core.config import ApiConfig
 
     cfg = ApiConfig()
@@ -336,11 +390,15 @@ def _start_server(
         lockout_seconds=cfg.rate_limit_lockout_seconds,
     )
 
+    from sentry.ml.advisory import AdvisoryScorer
+
+    scorer = AdvisoryScorer(weights_path=DEFAULT_WEIGHTS_PATH)
     server = create_server(
         host=host,
         port=port,
         authenticator=authenticator,
         executor=None,
+        advisory_scorer=scorer,
     )
 
     def shutdown_handler(signum: int, frame: object) -> None:
@@ -355,7 +413,7 @@ def _start_server(
     print(f"  Listening on http://{host}:{port}")
     print(f"  Dashboard: http://{host}:{port}/dashboard.html")
     print(f"  Token: {cfg.auth_token}")
-    print(f"  Press Ctrl+C to stop\n")
+    print("  Press Ctrl+C to stop\n")
 
     try:
         server.serve_forever()
@@ -381,7 +439,13 @@ def selftest_command(args: argparse.Namespace) -> int:
     print(f"  [{'OK' if benign_ok else 'FAIL'}] Benign traffic: zero/few alerts")
 
     # 2. Validate each attack scenario is detected within latency bound
-    attack_scenarios = ["syn_flood", "udp_flood", "icmp_flood", "port_scan", "flow_table_exhaustion"]
+    attack_scenarios = [
+        "syn_flood",
+        "udp_flood",
+        "icmp_flood",
+        "port_scan",
+        "flow_table_exhaustion",
+    ]
     all_ok = benign_ok
 
     for scenario in attack_scenarios:
@@ -408,6 +472,86 @@ def selftest_command(args: argparse.Namespace) -> int:
     return 0 if all_ok else 1
 
 
+def train_command(args: argparse.Namespace) -> int:
+    """Execute the 'train' subcommand — fit the ML advisory scorer (Phase 8)."""
+    from sentry.ml.train import main as train_main
+
+    return train_main(samples=args.samples, out=args.out, epochs=args.epochs, verbose=True)
+
+
+def _parse_feature_spec(spec: str) -> tuple[dict[str, dict[str, float]], dict[str, float]]:
+    """Split 'name=value,...' into (port_metrics, flow_metrics).
+
+    Port-rate keys are grouped under a synthetic subject; everything else
+    is treated as flow-level metrics.
+    """
+    port_keys = {
+        "pps_rx",
+        "pps_tx",
+        "bps_rx",
+        "bps_tx",
+        "drops_rx_rate",
+        "drops_tx_rate",
+        "errors_rx_rate",
+        "errors_tx_rate",
+    }
+    port_metrics: dict[str, dict[str, float]] = {}
+    flow_metrics: dict[str, float] = {}
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        name, _, raw = part.partition("=")
+        name = name.strip()
+        try:
+            value = float(raw.strip())
+        except ValueError as exc:
+            raise ValueError(f"Invalid numeric feature value: {part!r}") from exc
+        if name in port_keys:
+            port_metrics.setdefault("window-summary", {})[name] = value
+        else:
+            flow_metrics[name] = value
+    return port_metrics, flow_metrics
+
+
+def score_command(args: argparse.Namespace) -> int:
+    """Execute the 'score' subcommand — run the ML advisory scorer (Phase 8)."""
+    from sentry.ml.advisory import AdvisoryScorer
+    from sentry.ml.train import score_scenario
+
+    if args.scenario:
+        score_scenario(args.scenario, weights_path=args.weights)
+        return 0
+
+    if args.features:
+        scorer = AdvisoryScorer(weights_path=args.weights)
+        if not scorer.available:
+            print(f"Advisory scorer unavailable (weights missing: {args.weights}).")
+            print("Run `sentry train` to generate weights.")
+            return 1
+        try:
+            port_metrics, flow_metrics = _parse_feature_spec(args.features)
+        except ValueError as exc:
+            print(f"  error: {exc}")
+            return 2
+        verdict = scorer.score(port_metrics, flow_metrics)
+        if verdict is None:
+            print("Advisory scorer unavailable.")
+            return 1
+        print()
+        print(f"  advisory score      : {verdict.score:.4f}")
+        print(f"  predicted class     : {verdict.predicted}")
+        print(f"  band                : {verdict.band}")
+        print(f"  recommendation      : {verdict.recommendation}")
+        for name, contribution in verdict.top_features:
+            print(f"  top feature {name:<22s}: {contribution:+.4f}")
+        print()
+        return 0
+
+    print("Use --scenario <name> or --features 'k=v,k=v'.")
+    return 2
+
+
 def main() -> None:
     """Main CLI entrypoint."""
     parser = create_parser()
@@ -423,6 +567,10 @@ def main() -> None:
         sys.exit(replay_command(args))
     elif args.command == "serve":
         sys.exit(serve_command(args))
+    elif args.command == "train":
+        sys.exit(train_command(args))
+    elif args.command == "score":
+        sys.exit(score_command(args))
     elif args.command == "selftest":
         sys.exit(selftest_command(args))
 

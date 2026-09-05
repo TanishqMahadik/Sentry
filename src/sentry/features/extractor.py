@@ -7,10 +7,9 @@ All features are normalized/scaled for consistent ML/rule-based processing.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from sentry.core.models import TelemetrySnapshot
-from sentry.features.entropy import compute_ip_entropy, compute_port_entropy
+from sentry.features.entropy import compute_ip_entropy
 
 logger = logging.getLogger(__name__)
 

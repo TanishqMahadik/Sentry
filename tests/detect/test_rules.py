@@ -1,16 +1,17 @@
 """Tests for detect/rules.py — 8 threat detection rules."""
 
 import unittest
+
 from sentry.detect.rules import (
-    SynFloodRule,
-    UdpFloodRule,
-    IcmpFloodRule,
-    PortScanRule,
-    FlowTableExhaustionRule,
+    RULES,
     ArpSpoofRule,
     CpSaturationRule,
+    FlowTableExhaustionRule,
+    IcmpFloodRule,
+    PortScanRule,
+    SynFloodRule,
     TopologyPoisoningRule,
-    RULES,
+    UdpFloodRule,
 )
 
 

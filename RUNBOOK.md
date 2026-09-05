@@ -258,6 +258,24 @@ If legitimate traffic triggers detection:
 3. Review the correlator's hysteresis (2 positive / 5 clean windows)
 4. Adjust `min_confidence` in SafetyRails if needed
 
+### ML Advisory Scorer Reports Unavailable
+
+The Phase 8 advisory scorer (`sentry score`, `sentry serve`) loads `models/advisory_weights.json`:
+
+```bash
+# Verify the weights artifact exists
+ls -l models/advisory_weights.json
+
+# Missing? Regenerate it — pure-Python training, no external deps
+python -m sentry train --samples 60 --epochs 600
+
+# The scorer degrades gracefully when unavailable:
+#   - `sentry score --features ...` prints "Advisory scorer unavailable" (exit 1)
+#   - the API threat feed simply omits the "advisory" key
+```
+
+The advisory score is **informational only** — it annotates the threat feed and CLI output but never gates or triggers mitigation. If advisory predictions diverge from rule verdicts, trust the rule path; the model is trained on synthetic operating points, so its probability is a similarity score, not a calibrated threat probability (see `THREAT_MODEL.md`).
+
 ---
 
 ## 8. Backup & Recovery

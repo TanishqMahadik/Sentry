@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
 
 from sentry.core.models import MitigationAction
 from sentry.onos.client import OnosClient
@@ -87,7 +86,7 @@ class Executor:
         if action_type == "install_flow":
             self.client.install_flow(
                 device_id=action.device_id,
-                flow_payload=payload.get("flow_rule", {}),
+                flow_rule=payload.get("flow_rule", {}),
             )
             return True
         elif action_type == "install_meter":

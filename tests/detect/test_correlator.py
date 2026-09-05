@@ -2,8 +2,9 @@
 
 import time
 import unittest
+
 from sentry.core.models import ThreatVerdict
-from sentry.detect.correlator import Correlator, ThreatStage, SubjectState
+from sentry.detect.correlator import Correlator, SubjectState, ThreatStage
 
 
 def _make_verdict(threat_type: str = "SYN_FLOOD", subject_id: str = "test") -> ThreatVerdict:
@@ -71,7 +72,7 @@ class TestSubjectState(unittest.TestCase):
         state.update(None)
         state.update(None)
         # 2 clean, then detection resets clean count and increments positive
-        stage = state.update(verdict)
+        state.update(verdict)
         self.assertEqual(state.clean_count, 0)
         self.assertEqual(state.positive_count, 1)
 

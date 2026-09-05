@@ -9,9 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
+from dataclasses import dataclass
 
 from sentry.core.minyaml import load_yaml_file
 

@@ -14,7 +14,7 @@ Stages:
 from __future__ import annotations
 
 import logging
-import time
+from collections.abc import Callable
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -235,8 +235,8 @@ def build_port_isolation_payload(
     }
 
 
-# Payload builder dispatch
-PAYLOAD_BUILDERS = {
+# Payload builder dispatch (heterogeneous signatures — called dynamically)
+PAYLOAD_BUILDERS: dict[int, Callable[..., dict[str, Any]]] = {
     0: build_observe_payload,
     1: build_throttle_payload,
     2: build_selective_drop_payload,

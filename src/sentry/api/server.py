@@ -13,25 +13,21 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
-from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 
 from sentry.api.auth import Authenticator
 from sentry.api.routes import (
     _parse_cookies,
-    _html_response,
-    _json_response,
-    _redirect,
     make_login_handler,
     make_logout_handler,
+    make_mitigations_handler,
+    make_replay_handler,
+    make_revoke_handler,
     make_status_handler,
     make_threats_handler,
-    make_mitigations_handler,
-    make_revoke_handler,
     make_topology_handler,
-    make_replay_handler,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,6 +43,7 @@ class SentryHTTPHandler(BaseHTTPRequestHandler):
     static_dir: str
     routes: dict[str, Any]
     executor: Any | None
+    advisory_scorer: Any | None
 
     def do_GET(self) -> None:
         """Handle GET requests."""
@@ -74,7 +71,7 @@ class SentryHTTPHandler(BaseHTTPRequestHandler):
             pass  # Skip auth check
         elif path.startswith("/api/v1/"):
             # API route — check auth
-            headers = {k: v for k, v in self.headers.items()}
+            headers = dict(self.headers.items())
             cookie_header = headers.get("Cookie", "")
             cookies = _parse_cookies(cookie_header)
             if not self.authenticator.check_request(headers, cookies):
@@ -83,7 +80,7 @@ class SentryHTTPHandler(BaseHTTPRequestHandler):
                 return
         elif not path.startswith("/api/"):
             # Static file — check auth via cookie
-            headers = {k: v for k, v in self.headers.items()}
+            headers = dict(self.headers.items())
             cookie_header = headers.get("Cookie", "")
             cookies = _parse_cookies(cookie_header)
             if not self.authenticator.check_request(headers, cookies):
@@ -111,7 +108,7 @@ class SentryHTTPHandler(BaseHTTPRequestHandler):
         elif path == "/api/v1/status":
             handler = make_status_handler()
         elif path == "/api/v1/threats":
-            handler = make_threats_handler()
+            handler = make_threats_handler(self.advisory_scorer)
         elif path == "/api/v1/mitigations" and method == "GET":
             handler = make_mitigations_handler(self.executor)
         elif path.startswith("/api/v1/mitigations/") and path.endswith("/revoke"):
@@ -125,7 +122,7 @@ class SentryHTTPHandler(BaseHTTPRequestHandler):
                                 b'{"error":"Not found"}')
             return
 
-        headers_dict = {k: v for k, v in self.headers.items()}
+        headers_dict = dict(self.headers.items())
         status, resp_headers, resp_body = handler(
             method, path, headers_dict, body, client_ip
         )
@@ -207,6 +204,7 @@ def create_server(
     authenticator: Authenticator | None = None,
     executor: Any = None,
     static_dir: str | None = None,
+    advisory_scorer: Any = None,
 ) -> ThreadingHTTPServer:
     """Create and configure the Sentry HTTP server.
 
@@ -216,6 +214,8 @@ def create_server(
         authenticator: Authentication manager
         executor: Mitigation executor (optional, for /api/v1/mitigations)
         static_dir: Path to static files directory
+        advisory_scorer: Optional ML AdvisoryScorer (attaches the
+            ``advisory`` field to API threat entries)
 
     Returns:
         Configured ThreadingHTTPServer
@@ -243,6 +243,7 @@ def create_server(
             "authenticator": authenticator,
             "static_dir": static_dir,
             "executor": executor,
+            "advisory_scorer": advisory_scorer,
         },
     )
 

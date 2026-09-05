@@ -1,16 +1,15 @@
 """Tests for sim/scenarios.py and sim/replay.py."""
 
 import unittest
-from sentry.sim.scenarios import (
-    BenignTraffic,
-    SynFloodAttack,
-    UdpFloodAttack,
-    IcmpFloodAttack,
-    PortScanAttack,
-    FlowTableExhaustionAttack,
-    SCENARIOS,
-)
+
 from sentry.sim.replay import ReplayEngine
+from sentry.sim.scenarios import (
+    SCENARIOS,
+    BenignTraffic,
+    FlowTableExhaustionAttack,
+    PortScanAttack,
+    SynFloodAttack,
+)
 
 
 class TestScenarios(unittest.TestCase):
@@ -69,7 +68,10 @@ class TestScenarios(unittest.TestCase):
 
     def test_all_scenarios_registered(self):
         """All expected scenarios should be in registry."""
-        expected = ["benign", "syn_flood", "udp_flood", "icmp_flood", "port_scan", "flow_table_exhaustion"]
+        expected = [
+            "benign", "syn_flood", "udp_flood", "icmp_flood",
+            "port_scan", "flow_table_exhaustion",
+        ]
         for scenario in expected:
             self.assertIn(scenario, SCENARIOS)
 
@@ -92,7 +94,8 @@ class TestReplayEngine(unittest.TestCase):
         # Use lower MAD threshold to make detection more sensitive
         result = engine.replay_scenario("syn_flood", max_ticks=15, mad_threshold=2.0)
 
-        # Attack should be detected eventually (may take longer due to warmup + baseline stabilization)
+        # Attack should be detected eventually (may take longer due to warmup +
+        # baseline stabilization)
         self.assertGreater(len(result.anomalies_detected), 0)
         self.assertIsNotNone(result.detection_tick)
         self.assertLessEqual(result.detection_tick, 15)

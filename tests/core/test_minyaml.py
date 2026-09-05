@@ -1,7 +1,8 @@
 """Tests for core/minyaml.py zero-dependency YAML parser."""
 
 import unittest
-from sentry.core.minyaml import parse_yaml, load_yaml_file
+
+from sentry.core.minyaml import parse_yaml
 
 
 class TestMinYaml(unittest.TestCase):

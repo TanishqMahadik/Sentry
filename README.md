@@ -42,6 +42,7 @@ Most SDN security demos either require a live attack lab to show anything, or sk
 | **Tamper-Evident Ledger** | Every verdict, action, refusal, and revocation is written to an append-only, SHA-256 hash-chained audit ledger. |
 | **Standalone Operator Dashboard** | Single-file, air-gapped web console — topology graph, live threat feed, canvas baseline chart, token-guarded write actions. |
 | **Authenticated Operator Login** | Dedicated `/login` interface authenticating operators via `SENTRY_API_TOKEN`, session cookies, or HTTP Bearer tokens. |
+| **ML Advisory Scorer** | Pure-Python logistic regression (stdlib-only, no numpy/sklearn) that scores the same per-window metrics as the rule detectors, producing an advisory probability, class guess, and band (`LOW→CRITICAL`). It annotates the API threat feed and CLI, never the mitigation path. See `THREAT_MODEL.md`. |
 
 ## System Architecture
 
@@ -109,34 +110,41 @@ Sentry is organized into five planes, each with a clear boundary and protocol to
 
 ```
 Sentry/
-├── .github/workflows/ci.yml   # Linting and replay CI tests
+├── .github/workflows/ci.yml   # Linting, typing & test CI (Phase 8 exit gate)
 ├── config/
 │   ├── sentry.yaml             # Service & ONOS connectivity config
 │   └── policy.yaml             # Threat thresholds & safety rails
 ├── deploy/
 │   ├── docker-compose.yml      # Multi-container orchestration
 │   ├── Dockerfile.sentry       # Non-root Python runtime container
-│   ├── Dockerfile.mininet      # Mininet + OVS lab container
-│   └── mininet/topo_lab.py     # Multi-switch lab topology
+│   ├── onos-config/            # ONOS runtime customization
+│   ├── topo_lab.py             # Mininet lab topology (requires root)
+│   ├── attacks.py              # Per-attack traffic generator scripts
+│   └── mininet/                # Mininet lab container helpers
+├── models/
+│   └── advisory_weights.json   # Committed ML advisor weights (offline scoring)
 ├── src/sentry/
 │   ├── __init__.py
-│   ├── __main__.py             # CLI entrypoint (run, replay, selftest)
-│   ├── app.py                  # Core orchestrator
-│   ├── api/                    # Server, auth, topology projection, login, dashboard
+│   ├── __main__.py             # CLI entrypoint (run, replay, serve, selftest, train, score)
+│   ├── api/                    # Server, auth, routes, static login + dashboard
 │   │   └── static/
 │   │       ├── login.html
 │   │       └── dashboard.html
 │   ├── audit/                  # Append-only hash-chained ledger
-│   ├── collect/                # Telemetry poller, normalizer, sliding window
+│   ├── collect/                # Telemetry poller, normalizer, sliding window, baselines
 │   ├── core/                   # Models, minyaml parser, clock, logging
-│   ├── detect/                 # Detector engine, rules, correlator, ML scorer
-│   ├── features/                # Shannon entropy & 16-feature vector extractor
+│   ├── detect/                 # Detector engine, rules, correlator
+│   ├── features/               # Shannon entropy & feature-vector extractor
 │   ├── mitigate/               # Policy planner, safety rails, executor, reaper
+│   ├── ml/                     # Advisory-only ML scorer (Phase 8): logistic, weights, advisory, train
 │   ├── onos/                   # REST client, HTTP transport, payload builders
 │   └── sim/                    # Synthetic telemetry scenarios & replay harness
-├── tests/                      # Test modules mirroring src structure
-├── Makefile                    # Quickstart build commands
-├── pyproject.toml              # Python package configuration
+├── tests/                      # Test modules mirroring src structure (incl. tests/ml/)
+├── pyproject.toml              # Python package configuration (ruff/mypy/pytest)
+├── ARCHITECTURE.md             # Five-plane architecture & data flows
+├── THREAT_MODEL.md             # Per-threat detection & advisory signatures
+├── DEMO.md                     # Step-by-step offline demo walkthrough
+├── RUNBOOK.md                  # Live-lab deployment & operations
 └── README.md
 ```
 
@@ -153,9 +161,13 @@ python -m sentry run --once
 
 # Replay a specific attack scenario and serve the dashboard locally for a demo
 python -m sentry replay --scenario syn_flood --serve
+
+# ML advisory scorer (Phase 8): retrain the pure-Python model, then score an attack
+python -m sentry train
+python -m sentry score --scenario syn_flood
 ```
 
-For a live lab run against a real ONOS + Mininet topology, see `deploy/docker-compose.yml` and `RUNBOOK.md`.
+The ML scorer is advisory-only — it annotates the API threat feed and CLI output but never gates or triggers mitigation. For the full walkthrough see `DEMO.md`; for a live lab run against a real ONOS + Mininet topology see `deploy/docker-compose.yml` and `RUNBOOK.md`.
 
 ## Operator Dashboard & Login
 

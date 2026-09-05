@@ -17,16 +17,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 import time
 
 try:
+    from mininet.cli import CLI
+    from mininet.link import TCLink
+    from mininet.log import info, setLogLevel
     from mininet.net import Mininet
     from mininet.node import OVSSwitch, RemoteController
-    from mininet.link import TCLink
-    from mininet.cli import CLI
-    from mininet.log import setLogLevel, info
     from mininet.util import dumpNodeConnections
 except ImportError:
     print("ERROR: Mininet is required. Install with:")

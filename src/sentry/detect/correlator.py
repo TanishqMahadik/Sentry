@@ -54,6 +54,7 @@ class SubjectState:
         self.clean_count = 0
         self.total_detections = 0
         self.last_verdict: ThreatVerdict | None = None
+        self._alert_only_types: set[str] = set()
 
     def update(self, verdict: ThreatVerdict | None) -> ThreatStage:
         """Update state based on detection result.
@@ -72,9 +73,7 @@ class SubjectState:
             self.threat_type = verdict.threat_type
 
             # Topology poisoning stays at SUSPECTED (alert-only)
-            is_alert_only = getattr(
-                self, "_alert_only_types", set()
-            ) and verdict.threat_type in self._alert_only_types
+            is_alert_only: bool = verdict.threat_type in self._alert_only_types
 
             if self.positive_count >= self.confirm_threshold:
                 if self.stage == ThreatStage.CLEAN:

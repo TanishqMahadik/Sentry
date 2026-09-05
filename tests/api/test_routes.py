@@ -73,6 +73,52 @@ class TestThreatsHandler(unittest.TestCase):
         data = json.loads(body)
         self.assertEqual(data["count"], 0)
 
+    def test_threats_without_scorer_have_no_advisory(self):
+        from sentry.api.routes import make_threats_handler
+        from sentry.core.models import ThreatVerdict
+
+        threat = ThreatVerdict(
+            threat_type="syn_flood",
+            subject_id="10.0.0.5",
+            severity="high",
+            confidence=0.9,
+            timestamp=123,
+            evidence={"pps_rx": 5000.0},
+            message="SYN flood detected",
+        )
+        handler = make_threats_handler(scorer=None, threats_source=lambda: [threat])
+        status, _, body = handler("GET", "/api/v1/threats", {}, b"", "10.0.0.1")
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertEqual(data["count"], 1)
+        self.assertNotIn("advisory", data["threats"][0])
+
+    def test_threats_with_scorer_carry_advisory(self):
+        from sentry.api.routes import make_threats_handler
+        from sentry.core.models import ThreatVerdict
+        from tests.ml._helpers import attack_metrics, build_test_scorer
+
+        threat = ThreatVerdict(
+            threat_type="syn_flood",
+            subject_id="10.0.0.5",
+            severity="high",
+            confidence=0.9,
+            timestamp=123,
+            evidence={"pps_rx": 5000.0},
+            message="SYN flood detected",
+        )
+        scorer = build_test_scorer()
+        port_metrics, flow_metrics = attack_metrics()
+        handler = make_threats_handler(scorer=scorer, threats_source=lambda: [threat])
+        status, _, body = handler("GET", "/api/v1/threats", {}, b"", "10.0.0.1")
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertEqual(data["count"], 1)
+        entry = data["threats"][0]
+        self.assertEqual(entry["threat_type"], "syn_flood")
+        self.assertIn("advisory", entry)
+        self.assertIn("band", entry["advisory"])
+
 
 class TestTopologyHandler(unittest.TestCase):
     """Tests for make_topology_handler."""

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
 
 from sentry.core.models import MitigationAction, ThreatVerdict
 from sentry.detect.correlator import ThreatStage
@@ -193,7 +192,7 @@ class Planner:
         # Topology poisoning is alert-only — never escalate beyond observe
         if verdict.threat_type == "TOPOLOGY_POISONING":
             logger.info(
-                f"Topology poisoning detected — alert-only, no mitigation",
+                "Topology poisoning detected — alert-only, no mitigation",
                 extra={"subject": verdict.subject_id},
             )
             return None

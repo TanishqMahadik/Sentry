@@ -118,7 +118,9 @@ class SynFloodRule(DetectionRule):
             ratio = pps_tx / pps_rx if pps_rx > 0 else 1.0
             if ratio <= self.tx_rx_ratio_max:
                 confidence = min(1.0, pps_rx / (self.pps_rx_threshold * 5))
-                return self._make_verdict(port_key, confidence, {"pps_rx": pps_rx, "pps_tx": pps_tx, "tx_rx_ratio": ratio})
+                return self._make_verdict(
+                    port_key, confidence, {"pps_rx": pps_rx, "pps_tx": pps_tx, "tx_rx_ratio": ratio}
+                )
 
         # Also check MAD-based anomaly from baselines
         for subject_id, bl in baseline_metrics.items():
@@ -128,7 +130,11 @@ class SynFloodRule(DetectionRule):
                     pps_rx = port_metrics[subject_id].get("pps_rx", 0)
                     deviation = abs(pps_rx - mean) / mad
                     if deviation > 3.0 and pps_rx > self.pps_rx_threshold:
-                        return self._make_verdict(subject_id, min(1.0, deviation / 10.0), {"pps_rx": pps_rx, "baseline_mean": mean, "mad_score": deviation})
+                        return self._make_verdict(
+                            subject_id,
+                            min(1.0, deviation / 10.0),
+                            {"pps_rx": pps_rx, "baseline_mean": mean, "mad_score": deviation},
+                        )
 
         return None
 
@@ -163,7 +169,11 @@ class UdpFloodRule(DetectionRule):
                     pps_rx = port_metrics[subject_id].get("pps_rx", 0)
                     deviation = abs(pps_rx - mean) / mad
                     if deviation > 3.0 and pps_rx > self.pps_rx_threshold:
-                        return self._make_verdict(subject_id, min(1.0, deviation / 10.0), {"pps_rx": pps_rx, "baseline_mean": mean, "mad_score": deviation})
+                        return self._make_verdict(
+                            subject_id,
+                            min(1.0, deviation / 10.0),
+                            {"pps_rx": pps_rx, "baseline_mean": mean, "mad_score": deviation},
+                        )
 
         return None
 
@@ -198,7 +208,11 @@ class IcmpFloodRule(DetectionRule):
                     pps_rx = port_metrics[subject_id].get("pps_rx", 0)
                     deviation = abs(pps_rx - mean) / mad
                     if deviation > 3.0 and pps_rx > self.pps_rx_threshold:
-                        return self._make_verdict(subject_id, min(1.0, deviation / 10.0), {"pps_rx": pps_rx, "baseline_mean": mean, "mad_score": deviation})
+                        return self._make_verdict(
+                            subject_id,
+                            min(1.0, deviation / 10.0),
+                            {"pps_rx": pps_rx, "baseline_mean": mean, "mad_score": deviation},
+                        )
 
         return None
 
@@ -231,7 +245,11 @@ class PortScanRule(DetectionRule):
                 return self._make_verdict(
                     flow_metrics.get("subject_id", "unknown"),
                     confidence,
-                    {"flow_count": flow_count, "unique_ports": unique_ports, "avg_packets_per_flow": avg_packets_per_flow},
+                    {
+                        "flow_count": flow_count,
+                        "unique_ports": unique_ports,
+                        "avg_packets_per_flow": avg_packets_per_flow,
+                    },
                 )
 
         # MAD-based flow count anomaly
@@ -241,7 +259,15 @@ class PortScanRule(DetectionRule):
                 if mad > 0:
                     deviation = abs(flow_count - mean) / mad
                     if deviation > 3.0 and flow_count >= self.flow_count_threshold:
-                        return self._make_verdict(subject_id, min(1.0, deviation / 10.0), {"flow_count": flow_count, "baseline_mean": mean, "mad_score": deviation})
+                        return self._make_verdict(
+                            subject_id,
+                            min(1.0, deviation / 10.0),
+                            {
+                                "flow_count": flow_count,
+                                "baseline_mean": mean,
+                                "mad_score": deviation,
+                            },
+                        )
 
         return None
 
@@ -280,7 +306,15 @@ class FlowTableExhaustionRule(DetectionRule):
                 if mad > 0:
                     deviation = abs(flow_count - mean) / mad
                     if deviation > 3.0 and flow_count >= self.flow_count_threshold:
-                        return self._make_verdict(subject_id, min(1.0, deviation / 10.0), {"flow_count": flow_count, "baseline_mean": mean, "mad_score": deviation})
+                        return self._make_verdict(
+                            subject_id,
+                            min(1.0, deviation / 10.0),
+                            {
+                                "flow_count": flow_count,
+                                "baseline_mean": mean,
+                                "mad_score": deviation,
+                            },
+                        )
 
         return None
 

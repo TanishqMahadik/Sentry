@@ -15,7 +15,6 @@ from sentry.core.models import (
     FlowStats,
     Host,
     Link,
-    Port,
     PortStats,
     TelemetrySnapshot,
 )

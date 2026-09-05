@@ -1,6 +1,7 @@
 """Tests for onos/client.py ONOS REST client."""
 
 import unittest
+
 from sentry.onos.client import OnosClient
 from sentry.onos.transport import FakeTransport
 

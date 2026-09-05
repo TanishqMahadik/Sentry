@@ -1,6 +1,7 @@
 """Tests for onos/transport.py HTTP transport and FakeTransport."""
 
 import unittest
+
 from sentry.onos.transport import FakeTransport, UrllibTransport
 
 

@@ -11,7 +11,6 @@ from typing import Any
 
 from sentry.collect.normalizer import TelemetryNormalizer
 from sentry.collect.window import WindowManager
-from sentry.core.models import TelemetrySnapshot
 from sentry.features.extractor import FeatureExtractor
 from sentry.onos.client import OnosClient
 from sentry.onos.transport import FakeTransport
@@ -211,7 +210,9 @@ class ReplayEngine:
         Returns:
             True if attack detected within bound, False otherwise
         """
-        result = self.replay_scenario(scenario_name, max_ticks=max_ticks, mad_threshold=mad_threshold)
+        result = self.replay_scenario(
+            scenario_name, max_ticks=max_ticks, mad_threshold=mad_threshold
+        )
         if result.detection_tick is None:
             logger.warning(f"Attack NOT detected: {scenario_name}")
             return False

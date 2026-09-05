@@ -1,6 +1,7 @@
 """Tests for collect/poller.py telemetry poller."""
 
 import unittest
+
 from sentry.collect.poller import TelemetryPoller
 from sentry.onos.client import OnosClient
 from sentry.onos.transport import FakeTransport

@@ -1,14 +1,15 @@
 """Tests for mitigate/payloads.py — OpenFlow payload construction."""
 
 import unittest
+
 from sentry.mitigate.payloads import (
-    build_observe_payload,
-    build_throttle_payload,
-    build_selective_drop_payload,
-    build_quarantine_payload,
-    build_port_isolation_payload,
-    build_payload,
     STAGE_TTLS,
+    build_observe_payload,
+    build_payload,
+    build_port_isolation_payload,
+    build_quarantine_payload,
+    build_selective_drop_payload,
+    build_throttle_payload,
 )
 
 

@@ -1,8 +1,7 @@
 """Tests for core/config.py configuration loading."""
 
 import unittest
-import tempfile
-import os
+
 from sentry.core.config import load_config, setup_logging
 
 

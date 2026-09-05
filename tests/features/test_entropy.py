@@ -3,13 +3,13 @@
 Uses hand-computed test cases to verify correctness.
 """
 
-import math
 import unittest
+
 from sentry.features.entropy import (
-    shannon_entropy,
     compute_ip_entropy,
     compute_port_entropy,
     compute_protocol_entropy,
+    shannon_entropy,
 )
 
 

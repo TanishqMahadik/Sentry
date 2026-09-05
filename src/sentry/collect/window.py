@@ -10,8 +10,6 @@ oscillation loops where the attack traffic becomes the "new normal".
 from __future__ import annotations
 
 import logging
-import time
-from typing import Any
 
 from sentry.core.models import BaselineWindow
 

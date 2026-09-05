@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import random
 import time
-from typing import Any
 
 from sentry.core.models import (
     Device,
@@ -60,12 +59,22 @@ class BenignTraffic(ScenarioGenerator):
         ]
 
         hosts = [
-            Host(host_id="00:00:00:00:00:01/-1", mac="00:00:00:00:00:01", vlan="-1", ip_addresses=["10.0.0.1"]),
-            Host(host_id="00:00:00:00:00:02/-1", mac="00:00:00:00:00:02", vlan="-1", ip_addresses=["10.0.0.2"]),
+            Host(
+                host_id="00:00:00:00:00:01/-1", mac="00:00:00:00:00:01", vlan="-1",
+                ip_addresses=["10.0.0.1"]
+            ),
+            Host(
+                host_id="00:00:00:00:00:02/-1", mac="00:00:00:00:00:02", vlan="-1",
+                ip_addresses=["10.0.0.2"]
+            ),
         ]
 
         links = [
-            Link(src_device="of:0000000000000001", src_port="2", dst_device="of:0000000000000002", dst_port="1", link_type="DIRECT", state="ACTIVE"),
+            Link(
+                src_device="of:0000000000000001", src_port="2",
+                dst_device="of:0000000000000002", dst_port="1",
+                link_type="DIRECT", state="ACTIVE"
+            ),
         ]
 
         # Normal traffic: 100-200 pps, stable
@@ -120,10 +129,20 @@ class SynFloodAttack(ScenarioGenerator):
         """Generate SYN flood telemetry."""
         timestamp = self.start_time + self.tick
 
-        devices = [Device(device_id="of:0000000000000001", available=True, role="MASTER", type="SWITCH")]
+        devices = [
+            Device(
+                device_id="of:0000000000000001", available=True, role="MASTER", type="SWITCH"
+            )
+        ]
         hosts = [
-            Host(host_id="00:00:00:00:00:01/-1", mac="00:00:00:00:00:01", vlan="-1", ip_addresses=["10.0.0.1"]),
-            Host(host_id="00:00:00:00:00:99/-1", mac="00:00:00:00:00:99", vlan="-1", ip_addresses=["10.0.0.99"]),
+            Host(
+                host_id="00:00:00:00:00:01/-1", mac="00:00:00:00:00:01", vlan="-1",
+                ip_addresses=["10.0.0.1"]
+            ),
+            Host(
+                host_id="00:00:00:00:00:99/-1", mac="00:00:00:00:00:99", vlan="-1",
+                ip_addresses=["10.0.0.99"]
+            ),
         ]
 
         # Attack starts at tick 3
@@ -150,7 +169,12 @@ class SynFloodAttack(ScenarioGenerator):
         ]
 
         return TelemetrySnapshot(
-            timestamp=timestamp, devices=devices, hosts=hosts, links=[], flows=[], port_stats=port_stats
+            timestamp=timestamp,
+            devices=devices,
+            hosts=hosts,
+            links=[],
+            flows=[],
+            port_stats=port_stats,
         )
 
 
@@ -163,8 +187,17 @@ class UdpFloodAttack(ScenarioGenerator):
 
     def generate_snapshot(self) -> TelemetrySnapshot:
         timestamp = self.start_time + self.tick
-        devices = [Device(device_id="of:0000000000000001", available=True, role="MASTER", type="SWITCH")]
-        hosts = [Host(host_id="00:00:00:00:00:01/-1", mac="00:00:00:00:00:01", vlan="-1", ip_addresses=["10.0.0.1"])]
+        devices = [
+            Device(
+                device_id="of:0000000000000001", available=True, role="MASTER", type="SWITCH"
+            )
+        ]
+        hosts = [
+            Host(
+                host_id="00:00:00:00:00:01/-1", mac="00:00:00:00:00:01", vlan="-1",
+                ip_addresses=["10.0.0.1"]
+            )
+        ]
 
         if self.tick < 3:
             pps = 100
@@ -184,7 +217,14 @@ class UdpFloodAttack(ScenarioGenerator):
             ),
         ]
 
-        return TelemetrySnapshot(timestamp=timestamp, devices=devices, hosts=hosts, links=[], flows=[], port_stats=port_stats)
+        return TelemetrySnapshot(
+            timestamp=timestamp,
+            devices=devices,
+            hosts=hosts,
+            links=[],
+            flows=[],
+            port_stats=port_stats,
+        )
 
 
 class IcmpFloodAttack(ScenarioGenerator):
@@ -196,8 +236,17 @@ class IcmpFloodAttack(ScenarioGenerator):
 
     def generate_snapshot(self) -> TelemetrySnapshot:
         timestamp = self.start_time + self.tick
-        devices = [Device(device_id="of:0000000000000001", available=True, role="MASTER", type="SWITCH")]
-        hosts = [Host(host_id="00:00:00:00:00:01/-1", mac="00:00:00:00:00:01", vlan="-1", ip_addresses=["10.0.0.1"])]
+        devices = [
+            Device(
+                device_id="of:0000000000000001", available=True, role="MASTER", type="SWITCH"
+            )
+        ]
+        hosts = [
+            Host(
+                host_id="00:00:00:00:00:01/-1", mac="00:00:00:00:00:01", vlan="-1",
+                ip_addresses=["10.0.0.1"]
+            )
+        ]
 
         if self.tick < 3:
             pps = 50
@@ -217,7 +266,14 @@ class IcmpFloodAttack(ScenarioGenerator):
             ),
         ]
 
-        return TelemetrySnapshot(timestamp=timestamp, devices=devices, hosts=hosts, links=[], flows=[], port_stats=port_stats)
+        return TelemetrySnapshot(
+            timestamp=timestamp,
+            devices=devices,
+            hosts=hosts,
+            links=[],
+            flows=[],
+            port_stats=port_stats,
+        )
 
 
 class PortScanAttack(ScenarioGenerator):
@@ -229,8 +285,17 @@ class PortScanAttack(ScenarioGenerator):
 
     def generate_snapshot(self) -> TelemetrySnapshot:
         timestamp = self.start_time + self.tick
-        devices = [Device(device_id="of:0000000000000001", available=True, role="MASTER", type="SWITCH")]
-        hosts = [Host(host_id="00:00:00:00:00:01/-1", mac="00:00:00:00:00:01", vlan="-1", ip_addresses=["10.0.0.1"])]
+        devices = [
+            Device(
+                device_id="of:0000000000000001", available=True, role="MASTER", type="SWITCH"
+            )
+        ]
+        hosts = [
+            Host(
+                host_id="00:00:00:00:00:01/-1", mac="00:00:00:00:00:01", vlan="-1",
+                ip_addresses=["10.0.0.1"]
+            )
+        ]
 
         # Port scan: many flows to different ports
         flows = []
@@ -264,7 +329,14 @@ class PortScanAttack(ScenarioGenerator):
             ),
         ]
 
-        return TelemetrySnapshot(timestamp=timestamp, devices=devices, hosts=hosts, links=[], flows=flows, port_stats=port_stats)
+        return TelemetrySnapshot(
+            timestamp=timestamp,
+            devices=devices,
+            hosts=hosts,
+            links=[],
+            flows=flows,
+            port_stats=port_stats,
+        )
 
 
 class FlowTableExhaustionAttack(ScenarioGenerator):
@@ -272,8 +344,17 @@ class FlowTableExhaustionAttack(ScenarioGenerator):
 
     def generate_snapshot(self) -> TelemetrySnapshot:
         timestamp = self.start_time + self.tick
-        devices = [Device(device_id="of:0000000000000001", available=True, role="MASTER", type="SWITCH")]
-        hosts = [Host(host_id="00:00:00:00:00:01/-1", mac="00:00:00:00:00:01", vlan="-1", ip_addresses=["10.0.0.1"])]
+        devices = [
+            Device(
+                device_id="of:0000000000000001", available=True, role="MASTER", type="SWITCH"
+            )
+        ]
+        hosts = [
+            Host(
+                host_id="00:00:00:00:00:01/-1", mac="00:00:00:00:00:01", vlan="-1",
+                ip_addresses=["10.0.0.1"]
+            )
+        ]
 
         # Attack: flood with many unique flows
         flows = []
@@ -295,10 +376,25 @@ class FlowTableExhaustionAttack(ScenarioGenerator):
                 )
 
         port_stats = [
-            PortStats(device_id="of:0000000000000001", port_number="1", timestamp=timestamp, packets_received=5000, packets_sent=4000, bytes_received=750000, bytes_sent=600000),
+            PortStats(
+                device_id="of:0000000000000001",
+                port_number="1",
+                timestamp=timestamp,
+                packets_received=5000,
+                packets_sent=4000,
+                bytes_received=750000,
+                bytes_sent=600000,
+            ),
         ]
 
-        return TelemetrySnapshot(timestamp=timestamp, devices=devices, hosts=hosts, links=[], flows=flows, port_stats=port_stats)
+        return TelemetrySnapshot(
+            timestamp=timestamp,
+            devices=devices,
+            hosts=hosts,
+            links=[],
+            flows=flows,
+            port_stats=port_stats,
+        )
 
 
 # Scenario registry

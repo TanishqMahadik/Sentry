@@ -15,7 +15,6 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Any
 
 from sentry.collect.window import WindowManager
 from sentry.core.models import MitigationAction

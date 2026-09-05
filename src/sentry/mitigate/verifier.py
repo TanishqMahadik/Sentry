@@ -9,7 +9,6 @@ This closes the feedback loop: Planner → Executor → Verifier → Ledger.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from sentry.core.models import MitigationAction
 from sentry.onos.client import OnosClient

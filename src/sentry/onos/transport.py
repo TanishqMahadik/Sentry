@@ -100,7 +100,8 @@ class UrllibTransport(HttpTransport):
                     response_body = response.read().decode("utf-8")
                     if not response_body.strip():
                         return {}
-                    return json.loads(response_body)
+                    data = json.loads(response_body)
+                    return data if isinstance(data, dict) else {}
 
             except urllib.error.HTTPError as e:
                 if e.code in (401, 403, 404):

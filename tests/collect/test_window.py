@@ -1,6 +1,7 @@
 """Tests for collect/window.py baseline management."""
 
 import unittest
+
 from sentry.collect.window import WindowManager
 
 

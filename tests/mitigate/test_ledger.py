@@ -5,7 +5,8 @@ import os
 import tempfile
 import time
 import unittest
-from sentry.core.models import ThreatVerdict, MitigationAction
+
+from sentry.core.models import MitigationAction, ThreatVerdict
 from sentry.mitigate.ledger import AuditLedger
 
 
@@ -71,7 +72,7 @@ class TestAuditLedger(unittest.TestCase):
             ledger.append_action(action)
 
         # Tamper: overwrite second entry
-        with open(self.ledger_path, "r", encoding="utf-8") as f:
+        with open(self.ledger_path, encoding="utf-8") as f:
             lines = f.readlines()
 
         entry = json.loads(lines[1])

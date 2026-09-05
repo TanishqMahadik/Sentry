@@ -1,6 +1,7 @@
 """Tests for features/extractor.py feature extraction."""
 
 import unittest
+
 from sentry.core.models import (
     Device,
     Flow,

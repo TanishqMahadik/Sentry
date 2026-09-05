@@ -2,6 +2,7 @@
 
 import time
 import unittest
+
 from sentry.core.models import MitigationAction, ThreatVerdict
 from sentry.detect.correlator import ThreatStage
 from sentry.mitigate.planner import Planner, SafetyRails

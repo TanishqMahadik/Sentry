@@ -1,6 +1,7 @@
 """Tests for collect/normalizer.py telemetry normalizer."""
 
 import unittest
+
 from sentry.collect.normalizer import TelemetryNormalizer
 from sentry.core.models import PortStats, TelemetrySnapshot
 
