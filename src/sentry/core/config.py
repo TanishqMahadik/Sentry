@@ -1,7 +1,8 @@
 """Configuration loader and structured JSON logging setup.
 
 Loads sentry.yaml and policy.yaml using minyaml parser.
-Configures stdlib logging to emit structured JSON (NFR-5).
+Environment variables override YAML values (12-factor pattern):
+    SENTRY_ONOS_HOST, SENTRY_ONOS_PORT, SENTRY_ONOS_USER, SENTRY_ONOS_PASS
 """
 
 from __future__ import annotations
@@ -12,6 +13,14 @@ import sys
 from dataclasses import dataclass
 
 from sentry.core.minyaml import load_yaml_file
+
+
+def _env_or(name: str, default: object) -> object:
+    """Return the env var value if set, else the YAML/default value."""
+    import os
+
+    val = os.environ.get(name)
+    return val if val is not None else default
 
 
 @dataclass
@@ -181,16 +190,16 @@ def load_config(
         log_level=service_dict.get("log_level", "INFO"),
     )
 
-    # Parse ONOS config
+    # Parse ONOS config (env vars override YAML, 12-factor style)
     onos_dict = sentry_data.get("onos", {})
     auth_dict = onos_dict.get("auth", {})
     backoff_dict = onos_dict.get("backoff", {})
     onos = OnosConfig(
-        host=onos_dict.get("host", "127.0.0.1"),
-        port=onos_dict.get("port", 8181),
+        host=_env_or("SENTRY_ONOS_HOST", onos_dict.get("host", "127.0.0.1")),
+        port=int(_env_or("SENTRY_ONOS_PORT", onos_dict.get("port", 8181))),
         use_https=onos_dict.get("use_https", False),
-        username=auth_dict.get("username", "onos"),
-        password=auth_dict.get("password", "rocks"),
+        username=_env_or("SENTRY_ONOS_USER", auth_dict.get("username", "onos")),
+        password=_env_or("SENTRY_ONOS_PASS", auth_dict.get("password", "rocks")),
         timeout=onos_dict.get("timeout", 5.0),
         backoff_initial=backoff_dict.get("initial", 1.0),
         backoff_multiplier=backoff_dict.get("multiplier", 2.0),

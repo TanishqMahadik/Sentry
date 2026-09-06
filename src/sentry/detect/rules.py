@@ -90,16 +90,26 @@ class DetectionRule:
 
 
 class SynFloodRule(DetectionRule):
-    """SYN flood detection: high pps_rx with low pps_tx ratio."""
+    """SYN flood detection: high pps_rx sustained across polling windows.
+
+    In ONOS reactive-forwarding topologies the controller floods broadcast
+    traffic symmetrically so trunk ports show tx≈rx.  The ratio check is
+    therefore unreliable in live SDN environments.  This rule triggers on
+    ANY port whose pps_rx exceeds the threshold — the sustained high rate
+    itself is the attack signal.  When the optional tx_rx_ratio_max < 1.0,
+    asymmetric edge-port detections receive a confidence boost.
+    """
 
     name = "syn_flood"
     threat_type = "SYN_FLOOD"
-    description = "SYN flood detected: asymmetric high packet rate"
+    description = "SYN flood detected: sustained high packet rate"
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self.pps_rx_threshold = self.config.get("pps_rx_threshold", 1000)
-        self.tx_rx_ratio_max = self.config.get("tx_rx_ratio_max", 0.3)
+        # Set to 1.0 to accept both symmetric and asymmetric high-rate traffic.
+        # Lower values (e.g. 0.3) restrict to classic asymmetric SYN floods only.
+        self.tx_rx_ratio_max = self.config.get("tx_rx_ratio_max", 1.0)
 
     def evaluate(
         self,
@@ -114,13 +124,16 @@ class SynFloodRule(DetectionRule):
             if pps_rx < self.pps_rx_threshold:
                 continue
 
-            # Check asymmetry: SYN flood has low response rate
+            # Compute ratio for evidence; boost confidence if asymmetric
             ratio = pps_tx / pps_rx if pps_rx > 0 else 1.0
-            if ratio <= self.tx_rx_ratio_max:
-                confidence = min(1.0, pps_rx / (self.pps_rx_threshold * 5))
-                return self._make_verdict(
-                    port_key, confidence, {"pps_rx": pps_rx, "pps_tx": pps_tx, "tx_rx_ratio": ratio}
-                )
+            is_asymmetric = ratio <= (self.tx_rx_ratio_max if self.tx_rx_ratio_max < 1.0 else 0.9)
+            confidence = min(1.0, pps_rx / (self.pps_rx_threshold * 5))
+            if is_asymmetric:
+                confidence = min(1.0, confidence * 1.2)  # boost for asymmetric
+
+            return self._make_verdict(
+                port_key, confidence, {"pps_rx": pps_rx, "pps_tx": pps_tx, "tx_rx_ratio": ratio}
+            )
 
         # Also check MAD-based anomaly from baselines
         for subject_id, bl in baseline_metrics.items():

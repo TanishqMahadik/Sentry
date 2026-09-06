@@ -81,8 +81,10 @@ class UrllibTransport(HttpTransport):
         headers = {
             "Authorization": self.auth_header,
             "Accept": "application/json",
-            "Content-Type": "application/json",
         }
+        # Only send Content-Type on requests with a body (POST/PUT/PATCH)
+        if data is not None:
+            headers["Content-Type"] = "application/json"
 
         body = json.dumps(data).encode("utf-8") if data else None
         request = urllib.request.Request(

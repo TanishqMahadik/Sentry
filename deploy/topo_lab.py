@@ -35,7 +35,7 @@ except ImportError:
 
 # ─── Configuration ──────────────────────────────────────────────────────────
 
-CONTROLLER_IP = "127.0.0.1"  # ONOS via localhost (Docker bridge from WSL2 host)
+CONTROLLER_IP = "onos"  # Docker DNS: ONOS container on the shared sentry-net
 CONTROLLER_PORT = 6653
 SWITCH_PROTOCOL = "OpenFlow13"
 
@@ -178,6 +178,7 @@ def main() -> None:
     parser.add_argument("--test", action="store_true", help="Run connectivity tests")
     parser.add_argument("--attack", action="store_true", help="Run attack demo")
     parser.add_argument("--cli", action="store_true", help="Open Mininet CLI")
+    parser.add_argument("--run", action="store_true", help="Run topology and sleep (no CLI, no attack)")
     args = parser.parse_args()
 
     setLogLevel("info")
@@ -212,7 +213,14 @@ def main() -> None:
         if args.attack:
             run_attack_demo(net)
 
-        if args.cli or (not args.test and not args.attack):
+        if args.run:
+            info("\n*** Topology running in background (sleeping until killed)\n")
+            try:
+                while True:
+                    time.sleep(60)
+            except KeyboardInterrupt:
+                pass
+        elif args.cli or (not args.test and not args.attack):
             info("\n*** Starting Mininet CLI (type 'exit' to quit)\n")
             CLI(net)
 

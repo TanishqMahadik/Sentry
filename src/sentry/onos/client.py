@@ -151,23 +151,27 @@ class OnosClient:
         timestamp = int(time.time())
         stats = []
 
-        for stat in stats_data:
-            stats.append(
-                PortStats(
-                    device_id=stat.get("deviceId", device_id or ""),
-                    port_number=str(stat.get("port", "")),
-                    timestamp=timestamp,
-                    packets_received=stat.get("packetsReceived", 0),
-                    packets_sent=stat.get("packetsSent", 0),
-                    bytes_received=stat.get("bytesReceived", 0),
-                    bytes_sent=stat.get("bytesSent", 0),
-                    packets_rx_dropped=stat.get("packetsRxDropped", 0),
-                    packets_tx_dropped=stat.get("packetsTxDropped", 0),
-                    packets_rx_errors=stat.get("packetsRxErrors", 0),
-                    packets_tx_errors=stat.get("packetsTxErrors", 0),
-                    duration_sec=stat.get("durationSec", 0),
+        for entry in stats_data:
+            # ONOS wraps ports under {"device": "...", "ports": [...]}
+            device = entry.get("device", device_id or "")
+            ports = entry.get("ports", [entry]) if "ports" in entry else [entry]
+            for stat in ports:
+                stats.append(
+                    PortStats(
+                        device_id=stat.get("device", device) or device_id or "",
+                        port_number=str(stat.get("port", "")),
+                        timestamp=timestamp,
+                        packets_received=stat.get("packetsReceived", 0),
+                        packets_sent=stat.get("packetsSent", 0),
+                        bytes_received=stat.get("bytesReceived", 0),
+                        bytes_sent=stat.get("bytesSent", 0),
+                        packets_rx_dropped=stat.get("packetsRxDropped", 0),
+                        packets_tx_dropped=stat.get("packetsTxDropped", 0),
+                        packets_rx_errors=stat.get("packetsRxErrors", 0),
+                        packets_tx_errors=stat.get("packetsTxErrors", 0),
+                        duration_sec=stat.get("durationSec", 0),
+                    )
                 )
-            )
         return stats
 
     def get_flow_statistics(self, device_id: str | None = None) -> list[FlowStats]:
@@ -175,13 +179,20 @@ class OnosClient:
 
         Args:
             device_id: Optional device ID to filter stats
+
+        Returns:
+            List of FlowStats, or empty list if endpoint unavailable (ONOS 2.7.0
+            does not expose /statistics/flows globally).
         """
         if device_id:
             url = f"/statistics/flows/{device_id}"
         else:
             url = "/statistics/flows"
 
-        response = self.transport.get(url)
+        try:
+            response = self.transport.get(url)
+        except ConnectionError:
+            return []
         stats_data = response.get("statistics", [])
 
         timestamp = int(time.time())

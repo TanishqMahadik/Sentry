@@ -19,6 +19,7 @@ from sentry.collect.normalizer import TelemetryNormalizer
 from sentry.collect.poller import TelemetryPoller
 from sentry.core.config import load_config, setup_logging
 from sentry.core.models import TelemetrySnapshot
+from sentry.detect.correlator import Correlator
 from sentry.ml.advisory import DEFAULT_WEIGHTS_PATH
 from sentry.onos.client import OnosClient
 from sentry.onos.transport import FakeTransport, UrllibTransport
@@ -257,18 +258,34 @@ def run_command(args: argparse.Namespace) -> int:
         backoff_max=config.onos.backoff_max_seconds,
     )
     normalizer = TelemetryNormalizer()
+    correlator = Correlator(confirm_threshold=2, clear_threshold=5)
 
     def handle_snapshot(snapshot: TelemetrySnapshot) -> None:
         rates = normalizer.normalize_snapshot(snapshot)
-        logger.info(
-            "Telemetry processed",
-            extra={
-                "timestamp": snapshot.timestamp,
-                "devices": len(snapshot.devices),
-                "hosts": len(snapshot.hosts),
-                "rates": rates,
-            },
+        # Build flow metrics for detection rules that need them
+        flow_metrics: dict[str, object] = {
+            "flow_count": len(snapshot.flows),
+            "unique_dst_ports": len(snapshot.flows),
+            "subject_id": snapshot.devices[0].device_id if snapshot.devices else "unknown",
+        }
+        verdicts = correlator.evaluate_cycle(
+            port_metrics=rates,
+            flow_metrics=flow_metrics,
+            baseline_metrics={},  # No EWMA baseline in live mode; threshold-based detection
         )
+        log_extra: dict[str, object] = {
+            "timestamp": snapshot.timestamp,
+            "devices": len(snapshot.devices),
+            "hosts": len(snapshot.hosts),
+            "rates": rates,
+        }
+        if verdicts:
+            logger.warning(
+                "THREAT DETECTED",
+                extra={"verdicts": [v.__dict__ for v in verdicts], **log_extra},
+            )
+        else:
+            logger.info("Telemetry processed", extra=log_extra)
 
     if args.once:
         logger.info("Running single telemetry poll (--once)")

@@ -25,11 +25,19 @@ class TestSynFloodRule(unittest.TestCase):
         self.assertIsNotNone(verdict)
         self.assertEqual(verdict.threat_type, "SYN_FLOOD")
 
-    def test_no_alert_on_balanced_traffic(self):
+    def test_detects_balanced_high_rate_in_reactive_topology(self):
+        # In ONOS reactive forwarding, trunk ports show tx≈rx due to
+        # controller flooding. High sustained pps_rx is still a valid signal.
         rule = SynFloodRule()
         port_metrics = {"of:1:1": {"pps_rx": 2000, "pps_tx": 1900}}
         verdict = rule.evaluate(port_metrics, {}, {})
-        self.assertIsNone(verdict)
+        self.assertIsNotNone(verdict)
+        self.assertEqual(verdict.threat_type, "SYN_FLOOD")
+        # Asymmetric traffic should get a confidence boost
+        rule2 = SynFloodRule()
+        port_asym = {"of:1:1": {"pps_rx": 2000, "pps_tx": 100}}
+        verdict_asym = rule2.evaluate(port_asym, {}, {})
+        self.assertGreater(verdict_asym.confidence, verdict.confidence)
 
     def test_no_alert_below_threshold(self):
         rule = SynFloodRule()

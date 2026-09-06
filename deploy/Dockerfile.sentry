@@ -10,6 +10,10 @@ WORKDIR /app
 # No pip installs needed — stdlib only (NFR-3).
 # Copy source code
 COPY src/ /app/src/
+COPY config/ /app/config/
+
+# Make `sentry` importable from /app/src
+ENV PYTHONPATH=/app/src
 
 # Default entrypoint
 ENTRYPOINT ["python", "-m", "sentry"]

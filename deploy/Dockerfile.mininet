@@ -1,0 +1,40 @@
+# Sentry SDN Lab — Mininet Container
+# Runs Mininet topology with OVS switches connecting to ONOS.
+#
+# Requires: --privileged (for OVS, kernel networking, namespaces)
+
+FROM ubuntu:22.04
+
+LABEL maintainer="sentry-sdn"
+LABEL description="Mininet + OVS for Sentry integration testing"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Mininet + OVS + Python 3 + networking tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    mininet \
+    openvswitch-switch \
+    openvswitch-common \
+    iproute2 \
+    net-tools \
+    iputils-ping \
+    python3 \
+    python3-pip \
+    curl \
+    hping3 \
+    tcpdump \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /lab
+
+# Copy deploy scripts (topo_lab.py, attacks.py)
+COPY topo_lab.py /lab/topo_lab.py
+COPY attacks.py  /lab/attacks.py
+RUN chmod +x /lab/topo_lab.py /lab/attacks.py
+
+# Start OVS then run Mininet topology
+COPY entrypoint.sh /lab/entrypoint.sh
+RUN chmod +x /lab/entrypoint.sh
+
+ENTRYPOINT ["/lab/entrypoint.sh"]
+CMD ["--test"]

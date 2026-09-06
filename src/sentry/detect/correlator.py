@@ -30,24 +30,34 @@ class ThreatStage(Enum):
 
 
 class SubjectState:
-    """Tracks threat state for a single subject (port, device, or host)."""
+    """Tracks threat state for a single subject (port, device, or host).
+
+    Uses a sliding-window approach for escalation: the last ``window_size``
+    detection results are kept as a boolean ring buffer.  Escalation checks
+    the number of positive signals in that window rather than requiring strictly
+    *consecutive* positives, which makes the correlator robust to intermittent
+    traffic patterns common in ONOS reactive-forwarding topologies.
+    """
 
     def __init__(
         self,
         subject_id: str,
         confirm_threshold: int = 2,
         clear_threshold: int = 5,
+        window_size: int = 6,
     ) -> None:
         """Initialize subject state.
 
         Args:
             subject_id: Unique subject identifier
-            confirm_threshold: Consecutive positive windows to confirm
+            confirm_threshold: Positive windows (within window_size) to confirm
             clear_threshold: Consecutive clean windows to clear
+            window_size: Sliding window length for detection history
         """
         self.subject_id = subject_id
         self.confirm_threshold = confirm_threshold
         self.clear_threshold = clear_threshold
+        self.window_size = window_size
         self.stage = ThreatStage.CLEAN
         self.threat_type: str | None = None
         self.positive_count = 0
@@ -55,6 +65,12 @@ class SubjectState:
         self.total_detections = 0
         self.last_verdict: ThreatVerdict | None = None
         self._alert_only_types: set[str] = set()
+        # Sliding window: True = positive detection, False = clean
+        self._window: list[bool] = []
+
+    def _window_positives(self) -> int:
+        """Count positive signals in the sliding window."""
+        return sum(1 for v in self._window if v)
 
     def update(self, verdict: ThreatVerdict | None) -> ThreatStage:
         """Update state based on detection result.
@@ -71,19 +87,25 @@ class SubjectState:
             self.total_detections += 1
             self.last_verdict = verdict
             self.threat_type = verdict.threat_type
+            self._window.append(True)
+            if len(self._window) > self.window_size:
+                self._window.pop(0)
+
+            positives = self._window_positives()
 
             # Topology poisoning stays at SUSPECTED (alert-only)
             is_alert_only: bool = verdict.threat_type in self._alert_only_types
 
-            if self.positive_count >= self.confirm_threshold:
+            # Escalation: need enough positives in the sliding window
+            if positives >= self.confirm_threshold:
                 if self.stage == ThreatStage.CLEAN:
                     self.stage = ThreatStage.SUSPECTED
-                if self.positive_count >= self.confirm_threshold + 2:
+                if positives >= self.confirm_threshold + 2:
                     if not is_alert_only:
                         self.stage = ThreatStage.CONFIRMED
                     else:
-                        self.stage = ThreatStage.SUSPECTED  # Cap at SUSPECTED for alert-only
-                if self.positive_count >= self.confirm_threshold + 4:
+                        self.stage = ThreatStage.SUSPECTED
+                if positives >= self.confirm_threshold + 4:
                     if not is_alert_only:
                         self.stage = ThreatStage.ESCALATING
                     else:
@@ -95,11 +117,16 @@ class SubjectState:
         else:
             self.clean_count += 1
             self.positive_count = 0
+            self._window.append(False)
+            if len(self._window) > self.window_size:
+                self._window.pop(0)
 
+            # After clear_threshold consecutive clean windows, full reset
             if self.clean_count >= self.clear_threshold:
                 self.stage = ThreatStage.CLEAN
                 self.threat_type = None
                 self.last_verdict = None
+                self._window.clear()
             elif self.clean_count >= 2 and self.stage.value in ("ESCALATING", "MITIGATING"):
                 self.stage = ThreatStage.CONFIRMED
 

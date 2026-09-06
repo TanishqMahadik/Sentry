@@ -48,10 +48,9 @@ services:
       onos:
         condition: service_healthy
     environment:
-      - SENTRY_ONOS_URL=http://onos:8181/onos/v1
+      - SENTRY_ONOS_HOST=onos
       - SENTRY_ONOS_USER=karaf
       - SENTRY_ONOS_PASS=karaf
-      - SENTRY_DRY_RUN=false
       - SENTRY_LOG_LEVEL=INFO
     volumes:
       - ../src:/app/src:ro
@@ -61,6 +60,20 @@ services:
       sentry-net:
         ipv4_address: 10.0.0.200
     restart: unless-stopped
+
+  mininet:
+    build:
+      context: .
+      dockerfile: Dockerfile.mininet
+    container_name: sentry-mininet
+    privileged: true
+    depends_on:
+      onos:
+        condition: service_healthy
+    networks:
+      sentry-net:
+        ipv4_address: 10.0.0.150
+    restart: "no"
 
 networks:
   sentry-net:
