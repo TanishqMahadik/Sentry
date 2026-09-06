@@ -35,7 +35,7 @@ except ImportError:
 
 # ─── Configuration ──────────────────────────────────────────────────────────
 
-CONTROLLER_IP = "10.0.0.100"  # ONOS container (from docker-compose.yml)
+CONTROLLER_IP = "127.0.0.1"  # ONOS via localhost (Docker bridge from WSL2 host)
 CONTROLLER_PORT = 6653
 SWITCH_PROTOCOL = "OpenFlow13"
 
@@ -80,17 +80,15 @@ def build_topology() -> Mininet:
     s3 = net.addSwitch("s3", dpid="0000000000000003")
 
     info("*** Adding hosts\n")
-    # Hosts on s1 (subnet 10.0.1.0/24)
+    # All hosts on one flat subnet (10.0.1.0/24). ONOS reactive
+    # forwarding is L2-only, so a single L2 domain is required for
+    # reachability; cross-subnet routing is out of scope for the lab.
     h1 = net.addHost("h1", ip="10.0.1.1/24", mac="00:00:00:00:01:01")
     h2 = net.addHost("h2", ip="10.0.1.2/24", mac="00:00:00:00:01:02")
-
-    # Hosts on s2 (subnet 10.0.2.0/24)
-    h3 = net.addHost("h3", ip="10.0.2.1/24", mac="00:00:00:00:02:01")
-    h4 = net.addHost("h4", ip="10.0.2.2/24", mac="00:00:00:00:02:02")
-
-    # Hosts on s3 (subnet 10.0.3.0/24)
-    h5 = net.addHost("h5", ip="10.0.3.1/24", mac="00:00:00:00:03:01")
-    h6 = net.addHost("h6", ip="10.0.3.2/24", mac="00:00:00:00:03:02")
+    h3 = net.addHost("h3", ip="10.0.1.3/24", mac="00:00:00:00:01:03")
+    h4 = net.addHost("h4", ip="10.0.1.4/24", mac="00:00:00:00:01:04")
+    h5 = net.addHost("h5", ip="10.0.1.5/24", mac="00:00:00:00:01:05")
+    h6 = net.addHost("h6", ip="10.0.1.6/24", mac="00:00:00:00:01:06")
 
     info("*** Adding links\n")
     # Host-to-switch links (10 Mbps, 2ms delay)

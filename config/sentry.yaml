@@ -12,8 +12,8 @@ onos:
   port: 8181
   use_https: false
   auth:
-    username: onos
-    password: rocks
+    username: karaf
+    password: karaf
   timeout: 5.0               # HTTP request timeout in seconds
   backoff:
     initial: 1.0             # Initial backoff on connection failure

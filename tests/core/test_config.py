@@ -18,11 +18,11 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.service.poll_interval, 2.0)
         self.assertEqual(config.service.warmup_windows, 5)
 
-        # Verify ONOS config
+        # Verify ONOS config (overridden by config/sentry.yaml)
         self.assertEqual(config.onos.host, "127.0.0.1")
         self.assertEqual(config.onos.port, 8181)
-        self.assertEqual(config.onos.username, "onos")
-        self.assertEqual(config.onos.password, "rocks")
+        self.assertEqual(config.onos.username, "karaf")
+        self.assertEqual(config.onos.password, "karaf")
 
         # Verify API config
         self.assertEqual(config.api.port, 9090)

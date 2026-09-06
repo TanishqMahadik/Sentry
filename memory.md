@@ -59,7 +59,18 @@ metadata:
   - `api/static/dashboard.html` — Dashboard with SVG topology, Canvas chart, threat feed, mitigation registry
   - `__main__.py` — Added `serve` command and `replay --serve` flag for offline browser demo
   - Exit gate: Unauthenticated → redirect to /login; dashboard renders offline; invalid tokens → 401
+- ✅ **Phase 8 COMPLETE** (257/257 tests, ruff + mypy + selftest all green):
+  - `ml/logistic.py` — pure-Python logistic regression (binary + one-vs-rest, gradient descent, L2, standardization; stdlib-only per NFR-3)
+  - `ml/weights.py` — ModelWeights JSON persistence + `weights_from_model` helper
+  - `ml/advisory.py` — scoring facade, 20-feature `FEATURE_ORDER`, advisory bands (LOW/MEDIUM/HIGH/CRITICAL), `attach_to_threats`
+  - `ml/train.py` — synthetic dataset synthesis (benign + 8 attacks, deterministic under seed) + train/validate/persist pipeline
+  - CLI: `sentry train` / `sentry score --scenario|--features`; API threat feed gains an `advisory` key when weights present (advisory-only, never gates mitigation)
+  - Tests: `tests/ml/` (49 tests) + API advisory tests; total 257
+  - Docs: `ARCHITECTURE.md`, `THREAT_MODEL.md`, `DEMO.md`; README.md + RUNBOOK.md finalized
+  - CI: `.github/workflows/ci.yml` (ruff, mypy, pytest, offline selftest on 3.9 + 3.11)
+  - Lint/type cleanup across Phase 3-7 modules; `[tool.ruff]` → `[tool.ruff.lint]`; mypy pinned `<1.16` to keep python_version=3.9
+  - Committed `models/advisory_weights.json` (accuracy 0.983) for offline scoring
 
 **Why:** Context preservation to save token usage across sessions.
 
-**How to apply:** Resume with Phase 3 implementation.
+**How to apply:** All 8 phases complete. Next: maintenance / live-lab validation (deploy ONOS+Mininet and verify Phase 6/8 behavior against real traffic).

@@ -13,7 +13,7 @@
 
 services:
   onos:
-    image: opennetworklab/onos:2.7.0
+    image: onosproject/onos:2.7.0
     container_name: sentry-onos
     hostname: onos
     ports:
@@ -32,7 +32,7 @@ services:
       sentry-net:
         ipv4_address: 10.0.0.100
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8181/onos/v1/devices"]
+      test: ["CMD", "curl", "-f", "-u", "karaf:karaf", "http://localhost:8181/onos/v1/devices"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -49,8 +49,8 @@ services:
         condition: service_healthy
     environment:
       - SENTRY_ONOS_URL=http://onos:8181/onos/v1
-      - SENTRY_ONOS_USER=onos
-      - SENTRY_ONOS_PASS=onos
+      - SENTRY_ONOS_USER=karaf
+      - SENTRY_ONOS_PASS=karaf
       - SENTRY_DRY_RUN=false
       - SENTRY_LOG_LEVEL=INFO
     volumes:
